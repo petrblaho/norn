@@ -1,0 +1,116 @@
+#!/usr/bin/env ruby
+
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__)
+
+require "bundler/setup"
+require "norn"
+
+# Early detection of debug flag before booting core components
+if ARGV.include?("--debug") || ARGV.include?("-d")
+  ENV["NORN_DEBUG"] = "true"
+end
+
+# Normalize ARGV dynamically using registered GlobalOptions
+def normalize_argv!(argv)
+  option_mappings = {}
+  
+  Norn::GlobalOptions.registered_options.each do |name, opt|
+    # Map long flag (e.g., :provider -> "--provider")
+    option_key = "--#{name.to_s.gsub('_', '-')}"
+    option_mappings[option_key] = opt[:type] == :boolean ? :boolean : :value
+
+    # Map aliases (e.g., "-p")
+    (opt[:aliases] || []).each do |ali|
+      option_mappings[ali] = opt[:type] == :boolean ? :boolean : :value
+    end
+  end
+
+  extracted_args = []
+  remaining_args = []
+
+  i = 0
+  while i < argv.size
+    arg = argv[i]
+
+    if option_mappings.key?(arg)
+      if option_mappings[arg] == :value
+        extracted_args << arg
+        extracted_args << argv[i + 1] if i + 1 < argv.size
+        i += 2
+      else
+        extracted_args << arg
+        i += 1
+      end
+    else
+      remaining_args << arg
+      i += 1
+    end
+  end
+
+  argv.replace(remaining_args + extracted_args)
+end
+
+begin
+  # Load the dynamic configuration hierarchy (XDG -> Local -> Env)
+  config_result = Norn::ConfigLoader.load
+  if config_result.failure?
+    Norn::ErrorRenderer.render(config_result.failure)
+    exit 1
+  end
+
+  # 1. Load all dynamic plugins from the plugins/ directory
+  Norn::PluginLoader.load_all
+
+  # 2. Instantiate and verify OO class-based plugins
+  active_plugins = Norn::Plugin.registered_plugins.map do |plugin_class|
+    unless plugin_class < Norn::Plugin
+      raise Norn::Error, "Plugin Load Failure: #{plugin_class} must inherit from Norn::Plugin"
+    end
+
+    begin
+      plugin_class.plugin_name
+    rescue NotImplementedError
+      raise Norn::Error, "Interface Violation: Plugin #{plugin_class} must define self.plugin_name"
+    end
+
+    plugin_class.new
+  end
+
+  # Store active plugins so PluginManager can dynamically route hooks
+  Norn::PluginManager.active_plugins = active_plugins
+
+  # Run Phase 1: Declare custom hooks across all active plugins
+  Norn::Plugin.registered_plugins.each do |plugin_class|
+    plugin_class.declare_hooks(Norn::PluginManager)
+  end
+
+  # 3. Trigger :on_boot hook so plugins can register components in Norn::Container
+  Norn::PluginManager.trigger(:on_boot, Norn::Container)
+
+  # 3b. Trigger :on_tool_register hook so plugins can register tools in Norn::ToolRegistry
+  Norn::PluginManager.trigger(:on_tool_register, Norn::ToolRegistry)
+
+  # 4. Finalize dry-system Container
+  Norn::Container.finalize!
+
+  # 5. Trigger :on_cli_register hook so plugins can add custom CLI commands
+  Norn::CLI.register_plugins!
+
+  # Normalize the command-line arguments prior to Dry::CLI dispatch
+  normalize_argv!(ARGV)
+
+  # 6. Dispatch CLI argument parsing and execution
+  result = Dry::CLI.new(Norn::CLI).call
+
+  # If the executed command returned a monadic Failure, handle and render it
+  if result.respond_to?(:failure?) && result.failure?
+    Norn::ErrorRenderer.render(result.failure)
+    exit 1
+  end
+
+rescue StandardError => e
+  # Fallback to catch any unhandled exceptions at the very edge of the program
+  payload = Norn::FailurePayload.new(e, { stage: :bootstrap })
+  Norn::ErrorRenderer.render(payload)
+  exit 1
+end
