@@ -10,15 +10,18 @@ module Norn
 
         DEFAULT_MODEL = "gemini-3.5-flash"
 
-        def initialize(api_key: ENV["GEMINI_API_KEY"])
+        attr_reader :model
+
+        def initialize(api_key: ENV["GEMINI_API_KEY"], model: nil)
           @api_key = api_key
+          @model = model || Norn.config.gemini_model || DEFAULT_MODEL
         end
 
         def call(messages, tools: nil)
           if @api_key.nil? || @api_key.empty?
             return Failure(Norn::FailurePayload.new(
               Norn::ProviderError.new("GEMINI_API_KEY environment variable is not set."),
-              { provider: :gemini, model: DEFAULT_MODEL }
+              { provider: :gemini, model: @model }
             ))
           end
 
@@ -30,7 +33,7 @@ module Norn
                 version: "v1beta"
               },
               options: {
-                model: DEFAULT_MODEL
+                model: @model
               }
             )
 
@@ -176,7 +179,7 @@ module Norn
           rescue => e
             Failure(Norn::FailurePayload.new(
               Norn::ProviderError.new("Gemini API error: #{e.message}"),
-              { provider: :gemini, model: DEFAULT_MODEL, original_error: e }
+              { provider: :gemini, model: @model, original_error: e }
             ))
           end
         end

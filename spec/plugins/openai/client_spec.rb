@@ -36,6 +36,7 @@ RSpec.describe Norn::Plugins::OpenAI::Client do
 
       expect(mock_responses_resource).to receive(:create).with(
         model: "gpt-4o-mini",
+        temperature: 0.7,
         input: expected_api_messages
       ).and_return(mock_response)
 
@@ -84,6 +85,7 @@ RSpec.describe Norn::Plugins::OpenAI::Client do
 
       expect(mock_responses_resource).to receive(:create).with(
         model: "gpt-4o-mini",
+        temperature: 0.7,
         input: [{ role: :user, content: "read file" }],
         tools: expected_tools_schema
       ).and_return(mock_response)

@@ -8,6 +8,11 @@ module Norn
     Schema = Dry::Schema.Params do
       optional(:llm_provider).filled(:string, included_in?: ["openai", "gemini"])
       optional(:sandbox_info).maybe(:string)
+      optional(:openai_model).maybe(:string)
+      optional(:gemini_model).maybe(:string)
+      optional(:temperature).maybe(:float)
+      optional(:instructions_override).maybe(:string)
+      optional(:custom_instructions).maybe(:string)
     end
 
     class << self
@@ -22,8 +27,8 @@ module Norn
         global_config = load_first_match(global_paths)
         config_data.merge!(global_config) if global_config
 
-        # 2. Load Local Directory/Workspace Config
-        local_config = load_first_match(local_paths)
+        # 2. Load Local Directory/Workspace Config using LocalConfigReader
+        local_config = Norn::LocalConfigReader.new.read
         config_data.merge!(local_config) if local_config
 
         # 3. Load Environment Variables
@@ -57,15 +62,6 @@ module Norn
           File.join(config_home, "norn", "config.yml"),
           File.join(config_home, "norn", "config.yaml"),
           File.join(config_home, "norn", "config.json")
-        ]
-      end
-
-      def local_paths
-        cwd = Dir.pwd
-        [
-          File.join(cwd, ".norn.yml"),
-          File.join(cwd, ".norn.yaml"),
-          File.join(cwd, ".norn.json")
         ]
       end
 

@@ -10,15 +10,19 @@ module Norn
 
         DEFAULT_MODEL = "gpt-4o-mini"
 
-        def initialize(api_key: ENV["OPENAI_API_KEY"])
+        attr_reader :model, :temperature
+
+        def initialize(api_key: ENV["OPENAI_API_KEY"], model: nil, temperature: nil)
           @api_key = api_key
+          @model = model || Norn.config.openai_model || DEFAULT_MODEL
+          @temperature = temperature || Norn.config.temperature || 0.7
         end
 
         def call(messages, tools: nil)
           if @api_key.nil? || @api_key.empty?
             return Failure(Norn::FailurePayload.new(
               Norn::ProviderError.new("OPENAI_API_KEY environment variable is not set."),
-              { provider: :openai, model: DEFAULT_MODEL }
+              { provider: :openai, model: @model }
             ))
           end
 
@@ -49,7 +53,8 @@ module Norn
             end
 
             params = {
-              model: DEFAULT_MODEL,
+              model: @model,
+              temperature: @temperature,
               input: formatted_messages
             }
 
@@ -146,7 +151,7 @@ module Norn
           rescue => e
             Failure(Norn::FailurePayload.new(
               Norn::ProviderError.new("OpenAI API error: #{e.message}"),
-              { provider: :openai, model: DEFAULT_MODEL, original_error: e }
+              { provider: :openai, model: @model, original_error: e }
             ))
           end
         end

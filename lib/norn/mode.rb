@@ -195,8 +195,13 @@ module Norn
     # mode-level instructions, and LLM directives registered by all authorized tools.
     def compile_system_prompt
       system_parts = []
+      
+      # 1. Sandbox Info (Strictly environment metadata)
       system_parts << Norn.config.sandbox_info if Norn.config.sandbox_info && !Norn.config.sandbox_info.empty?
-      system_parts << instructions if instructions && !instructions.empty?
+      
+      # 2. Base Instructions (Mode-specific, but fully overridable from config)
+      base_instructions = Norn.config.instructions_override || instructions
+      system_parts << base_instructions if base_instructions && !base_instructions.empty?
 
       # Gather tools authorized under the active mode's permitted capabilities
       authorized_tools = Norn::ToolRegistry.registered_tools.select do |tool|
@@ -208,6 +213,11 @@ module Norn
       if tool_directives.any?
         compiled_directives = "TOOL EXECUTION DIRECTIVES:\n" + tool_directives.map { |d| "• #{d}" }.join("\n")
         system_parts << compiled_directives
+      end
+
+      # 3. Custom instructions (Appended rules/constraints)
+      if Norn.config.custom_instructions && !Norn.config.custom_instructions.strip.empty?
+        system_parts << Norn.config.custom_instructions
       end
 
       system_parts.reject(&:empty?).join("\n\n")

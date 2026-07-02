@@ -21,6 +21,7 @@ require_relative "norn/modes/task"
 require_relative "norn/modes/dev"
 require_relative "norn/cli"
 require_relative "norn/config"
+require_relative "norn/local_config_reader"
 require_relative "norn/config_loader"
 
 module Norn
