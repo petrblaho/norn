@@ -46,6 +46,10 @@ class GitPlugin < Norn::Plugin
     "git"
   end
 
+  def self.declare_hooks(manager)
+    manager.declare_hook :before_git_commit, desc: "ROP middleware. Allows inspecting/mutating git commit arguments (like message)."
+  end
+
   GIT_SCHEMA = {
     type: "object",
     properties: {
@@ -72,6 +76,14 @@ class GitPlugin < Norn::Plugin
     ) do |args, context|
       subcmd = args[:subcommand]
       extra_args = Array(args[:arguments]).map(&:to_s)
+
+      if subcmd == "commit"
+        payload = { subcommand: subcmd, arguments: extra_args }
+        middleware_result = Norn::PluginManager.trigger_middleware(:before_git_commit, payload)
+        if middleware_result.success?
+          extra_args = middleware_result.value![:arguments]
+        end
+      end
 
       # Construct array safely to completely prevent shell injection vulnerabilities (e.g. avoid ';' or '|' chaining)
       cmd = ["git", subcmd] + extra_args

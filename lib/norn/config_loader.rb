@@ -13,6 +13,8 @@ module Norn
       optional(:temperature).maybe(:float)
       optional(:instructions_override).maybe(:string)
       optional(:custom_instructions).maybe(:string)
+      optional(:git_addon_enabled).maybe(:bool)
+      optional(:git_addon_message).maybe(:string)
     end
 
     class << self
