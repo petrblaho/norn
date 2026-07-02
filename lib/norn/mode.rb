@@ -241,12 +241,14 @@ module Norn
           (tool.required_capabilities - allowed_capabilities).empty?
         end
 
-        # Execute the LLM call
-        response_result = if authorized_tools.any?
-                            client.call(active_messages, tools: authorized_tools)
-                          else
-                            client.call(active_messages)
-                          end
+        # Execute the LLM call with a nice spinner
+        response_result = with_spinner("Thinking...") do
+          if authorized_tools.any?
+            client.call(active_messages, tools: authorized_tools)
+          else
+            client.call(active_messages)
+          end
+        end
 
         return response_result if response_result.failure?
 
@@ -310,6 +312,37 @@ module Norn
 
           Norn::PluginManager.trigger(:after_llm_call, response_text)
           return Success(response_text) # Complete the turn!
+        end
+      end
+    end
+
+    def with_spinner(label)
+      # Only spin if output is a TTY and not in a non-interactive environment/test with mock streams
+      if !@output.respond_to?(:tty?) || !@output.tty?
+        return yield
+      end
+
+      chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+      delay = 0.08
+      thread = Thread.new do
+        Thread.current[:stop] = false
+        i = 0
+        until Thread.current[:stop]
+          @output.print "\r\e[K\e[1;36m#{chars[i % chars.size]}\e[0m #{label}"
+          @output.flush
+          sleep delay
+          i += 1
+        end
+      end
+
+      begin
+        yield
+      ensure
+        if thread
+          thread[:stop] = true
+          thread.join rescue nil
+          @output.print "\r\e[K" # Clear the line when done
+          @output.flush
         end
       end
     end
