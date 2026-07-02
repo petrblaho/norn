@@ -303,7 +303,7 @@ module Norn
 
           # Run the response text through our sequential ROP rendering middleware pipeline
           rendered_response = response_text.dup
-          middleware_result = Norn::PluginManager.trigger_middleware(:on_render_response, { text: rendered_response })
+          middleware_result = Norn::PluginManager.trigger_middleware(:on_render_response, { text: rendered_response, ui_metadata: {} })
           if middleware_result.success?
             rendered_response = middleware_result.value![:text]
           else
