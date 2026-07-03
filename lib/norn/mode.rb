@@ -185,9 +185,13 @@ module Norn
 
       # 3. Proceed to safe execution, passing self as context
       begin
-        Success(tool.call(args, self).to_s)
+        result_str = tool.call(args, self).to_s
+        Norn::PluginManager.trigger(:after_tool_call, tool_name, args, result_str, nil)
+        Success(result_str)
       rescue => e
-        Success("Error executing tool '#{tool_name}': #{e.message}")
+        error_msg = e.message
+        Norn::PluginManager.trigger(:after_tool_call, tool_name, args, nil, error_msg)
+        Success("Error executing tool '#{tool_name}': #{error_msg}")
       end
     end
 
@@ -263,6 +267,9 @@ module Norn
         return response_result if response_result.failure?
 
         response = response_result.value!
+
+        model_name = client.respond_to?(:model) ? client.model : nil
+        Norn::PluginManager.trigger(:after_llm_response, response, provider, model_name)
 
         if response.is_a?(Hash) && response[:type] == :tool_call
           # Append assistant's tool call request to history, preserving raw Gemini parts if present

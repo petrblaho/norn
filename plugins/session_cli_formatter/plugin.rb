@@ -17,12 +17,24 @@ module Norn
           tools = (stats[:tool_calls] || []).size
 
           format_string = Norn::Config.config.session_cli_format
-          formatted_stats = format_string % {
-            total: total,
-            prompt: prompt,
-            completion: completion,
-            tools: tools
-          }
+          
+          # Check if using the default format string
+          if format_string == "\e[2;36m(Tokens: %{total} [P: %{prompt} / C: %{completion}] | Tools: %{tools})\e[0m"
+            parts = []
+            parts << "Tokens: #{total} [P: #{prompt} / C: #{completion}]" if total > 0
+            parts << "Tools: #{tools}" if tools > 0
+            return payload if parts.empty?
+            
+            formatted_stats = "\e[2;36m(#{parts.join(' | ')})\e[0m"
+          else
+            # Custom format string
+            formatted_stats = format_string % {
+              total: total,
+              prompt: prompt,
+              completion: completion,
+              tools: tools
+            }
+          end
 
           # Format a non-intrusive dim terminal footer using ANSI escape codes
           footer = "\n\n#{formatted_stats}"

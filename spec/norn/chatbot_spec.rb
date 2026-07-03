@@ -8,7 +8,7 @@ RSpec.describe Norn::Modes::Chat do
 
   let(:input) { StringIO.new("hello\nexit\n") }
   let(:output) { StringIO.new }
-  let(:mock_client) { double("LLMClient") }
+  let(:mock_client) { double("LLMClient", model: "mock-model") }
 
   before do
     allow(Norn::Container).to receive(:[]).and_call_original

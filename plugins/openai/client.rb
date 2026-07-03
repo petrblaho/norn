@@ -147,6 +147,31 @@ module Norn
               { type: :text, content: response.output_text }
             end
 
+            # Extract usage from OpenAI response if available
+            usage = nil
+            if response.respond_to?(:usage) && response.usage
+              usage_obj = response.usage
+              if usage_obj.is_a?(Hash)
+                usage = {
+                  prompt_tokens: usage_obj["prompt_tokens"] || usage_obj[:prompt_tokens] || 0,
+                  completion_tokens: usage_obj["completion_tokens"] || usage_obj[:completion_tokens] || 0
+                }
+              elsif usage_obj.respond_to?(:prompt_tokens)
+                usage = {
+                  prompt_tokens: usage_obj.prompt_tokens || 0,
+                  completion_tokens: usage_obj.completion_tokens || 0
+                }
+              end
+            elsif response.is_a?(Hash) && (response["usage"] || response[:usage])
+              u = response["usage"] || response[:usage]
+              usage = {
+                prompt_tokens: u["prompt_tokens"] || u[:prompt_tokens] || 0,
+                completion_tokens: u["completion_tokens"] || u[:completion_tokens] || 0
+              }
+            end
+
+            parsed_response[:usage] = usage if usage && parsed_response.is_a?(Hash)
+
             Success(parsed_response)
           rescue => e
             Failure(Norn::FailurePayload.new(

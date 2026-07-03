@@ -140,6 +140,8 @@ module Norn
         declare_hook :before_llm_call, desc: "Fires before calling LLM. Allows inspecting/mutating messages."
         declare_hook :after_llm_call, desc: "Fires after LLM call completes. Informational."
         declare_hook :on_render_response, desc: "ROP middleware. Formats/renders response text in-place."
+        declare_hook :after_tool_call, desc: "Fires after a tool execution completes. Informational."
+        declare_hook :after_llm_response, desc: "Fires when an LLM response with metadata is received. Informational."
       end
 
       private
