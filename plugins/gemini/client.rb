@@ -175,6 +175,28 @@ module Norn
               { type: :text, content: text, parts: raw_parts }
             end
 
+            # Extract usage metadata from Gemini response if available
+            usage = nil
+            if result.is_a?(Array)
+              # The last chunk usually contains the usageMetadata
+              last_chunk = result.last
+              if last_chunk.is_a?(Hash) && (last_chunk["usageMetadata"] || last_chunk[:usageMetadata])
+                um = last_chunk["usageMetadata"] || last_chunk[:usageMetadata]
+                usage = {
+                  prompt_tokens: um["promptTokenCount"] || um[:promptTokenCount] || 0,
+                  completion_tokens: um["candidatesTokenCount"] || um[:candidatesTokenCount] || 0
+                }
+              end
+            elsif result.is_a?(Hash) && (result["usageMetadata"] || result[:usageMetadata])
+              um = result["usageMetadata"] || result[:usageMetadata]
+              usage = {
+                prompt_tokens: um["promptTokenCount"] || um[:promptTokenCount] || 0,
+                completion_tokens: um["candidatesTokenCount"] || um[:candidatesTokenCount] || 0
+              }
+            end
+
+            parsed_response[:usage] = usage if usage && parsed_response.is_a?(Hash)
+
             Success(parsed_response)
           rescue => e
             Failure(Norn::FailurePayload.new(

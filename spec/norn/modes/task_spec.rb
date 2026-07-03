@@ -7,7 +7,7 @@ RSpec.describe Norn::Modes::Task do
   include Dry::Monads[:result]
 
   let(:output) { StringIO.new }
-  let(:mock_client) { double("LLMClient") }
+  let(:mock_client) { double("LLMClient", model: "mock-model") }
 
   before do
     allow(Norn::Container).to receive(:[]).and_call_original
