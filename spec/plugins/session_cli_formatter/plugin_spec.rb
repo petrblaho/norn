@@ -34,7 +34,7 @@ RSpec.describe Norn::Plugins::SessionCliFormatter::SessionCliFormatterPlugin do
     end
 
     context "when session stats metadata is present in the payload" do
-      it "appends formatted token and tool usage metadata to the payload text" do
+      it "appends formatted token and tool usage metadata to the payload text using default dim cyan color" do
         payload = {
           text: "Response content",
           ui_metadata: {
@@ -50,10 +50,25 @@ RSpec.describe Norn::Plugins::SessionCliFormatter::SessionCliFormatterPlugin do
         result = plugin.on_render_response(payload)
 
         expect(result[:text]).to include("Response content")
-        # Matches "\e[90m(Tokens: 20 [P: 15 / C: 5] | Tools: 1)\e[0m"
-        expect(result[:text]).to include("Tokens: 20")
-        expect(result[:text]).to include("P: 15 / C: 5")
-        expect(result[:text]).to include("Tools: 1")
+        expect(result[:text]).to include("\e[2;36m(Tokens: 20 [P: 15 / C: 5] | Tools: 1)\e[0m")
+      end
+
+      it "respects custom session_cli_format configuration" do
+        allow(Norn::Config.config).to receive(:session_cli_format).and_return("CUSTOM: %{total}")
+        payload = {
+          text: "Response content",
+          ui_metadata: {
+            session_stats: {
+              prompt_tokens: 15,
+              completion_tokens: 5,
+              total_tokens: 20,
+              tool_calls: [{ tool: "file_read" }]
+            }
+          }
+        }
+
+        result = plugin.on_render_response(payload)
+        expect(result[:text]).to eq("Response content\n\nCUSTOM: 20")
       end
     end
   end

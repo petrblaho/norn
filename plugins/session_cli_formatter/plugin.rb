@@ -16,8 +16,16 @@ module Norn
           completion = stats[:completion_tokens] || 0
           tools = (stats[:tool_calls] || []).size
 
+          format_string = Norn::Config.config.session_cli_format
+          formatted_stats = format_string % {
+            total: total,
+            prompt: prompt,
+            completion: completion,
+            tools: tools
+          }
+
           # Format a non-intrusive dim terminal footer using ANSI escape codes
-          footer = "\n\n\e[90m(Tokens: #{total} [P: #{prompt} / C: #{completion}] | Tools: #{tools})\e[0m"
+          footer = "\n\n#{formatted_stats}"
 
           # Create a merged payload to avoid in-place side effects
           payload.merge(text: payload[:text].to_s + footer)
