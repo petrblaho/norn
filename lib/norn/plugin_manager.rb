@@ -137,6 +137,7 @@ module Norn
         declare_hook :on_tool_register, desc: "Fires to populate the global ToolRegistry."
         declare_hook :on_cli_register, desc: "Fires to let plugins register custom CLI commands."
         declare_hook :on_mode_register, desc: "Fires to register custom execution modes."
+        declare_hook :on_slash_commands_register, desc: "Fires to let plugins register custom slash commands."
         declare_hook :on_user_input, desc: "ROP middleware. Intercepts and processes raw user input before execution."
         declare_hook :before_llm_call, desc: "Fires before calling LLM. Allows inspecting/mutating messages."
         declare_hook :after_llm_call, desc: "Fires after LLM call completes. Informational."
