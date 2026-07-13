@@ -162,6 +162,9 @@ As you begin your work on the codebase, be aware of several gaps where the imple
 5. **Lack of Integration and CLI Command Tests**:
    * *Status:* **Testing Gap.**
    * *The Gap:* Although unit coverage is excellent, there are no end-to-end integration tests that mock external LLM API turns or verify that the compiled executable (`bin/norn`) dispatches options and arguments correctly.
+6. **Agent Skills Support Integration**:
+   * *Status:* **Specification Planned.**
+   * *The Gap:* Norn needs native support for the Agent Skills specification (https://agentskills.io/) to discover, parse, and progressively disclose modular `.agents/skills/` capabilities at both project and user-level directory scopes.
 
 ---
 
