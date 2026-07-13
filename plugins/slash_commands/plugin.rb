@@ -138,11 +138,12 @@ module Norn
               session = Norn["session"]
               if session
                 stats = session.stats
+                tool_calls_count = stats[:tool_calls].is_a?(Array) ? stats[:tool_calls].size : stats[:tool_calls]
                 message = "\e[1;36m📊 Current Session Stats:\e[0m\n" \
                           "  Prompt Tokens:     #{stats[:prompt_tokens]}\n" \
                           "  Completion Tokens: #{stats[:completion_tokens]}\n" \
                           "  Total Tokens:      #{stats[:total_tokens]}\n" \
-                          "  Tool Calls:        #{stats[:tool_calls]}\n"
+                          "  Tool Calls:        #{tool_calls_count}\n"
               else
                 message = "\e[1;31mSession tracking is not active.\e[0m"
               end
