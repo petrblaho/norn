@@ -221,9 +221,28 @@ module Norn
       # 1. Sandbox Info (Strictly environment metadata)
       system_parts << Norn.config.sandbox_info if Norn.config.sandbox_info && !Norn.config.sandbox_info.empty?
       
-      # 2. Base Instructions (Mode-specific, but fully overridable from config)
-      base_instructions = Norn.config.instructions_override || instructions
-      system_parts << base_instructions if base_instructions && !base_instructions.empty?
+      # 2. Compile instructions segment
+      inst_conf = Norn.config.instructions || {}
+      
+      # Determine base instructions
+      base_inst = inst_conf[:base] || instructions
+      
+      # Prepend rules
+      if inst_conf[:prepend].is_a?(Array)
+        inst_conf[:prepend].each do |p|
+          system_parts << p if p && !p.strip.empty?
+        end
+      end
+      
+      # Base instructions
+      system_parts << base_inst if base_inst && !base_inst.empty?
+      
+      # Append rules from config
+      if inst_conf[:append].is_a?(Array)
+        inst_conf[:append].each do |a|
+          system_parts << a if a && !a.strip.empty?
+        end
+      end
 
       # Gather tools authorized under the active mode's permitted capabilities
       authorized_tools = Norn::ToolRegistry.registered_tools.select do |tool|
@@ -235,11 +254,6 @@ module Norn
       if tool_directives.any?
         compiled_directives = "TOOL EXECUTION DIRECTIVES:\n" + tool_directives.map { |d| "• #{d}" }.join("\n")
         system_parts << compiled_directives
-      end
-
-      # 3. Custom instructions (Appended rules/constraints)
-      if Norn.config.custom_instructions && !Norn.config.custom_instructions.strip.empty?
-        system_parts << Norn.config.custom_instructions
       end
 
       system_parts.reject(&:empty?).join("\n\n")

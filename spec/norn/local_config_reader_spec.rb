@@ -45,4 +45,31 @@ RSpec.describe Norn::LocalConfigReader do
     reader = described_class.new(temp_root)
     expect(reader.read).to eq({})
   end
+
+  describe "when executed from outside the repository root" do
+    it "defaults root_path to Dir.pwd" do
+      reader = described_class.new
+      expect(reader.root_path).to eq(Dir.pwd)
+    end
+
+    it "loads configuration from the current working directory" do
+      require "tmpdir"
+      original_pwd = Dir.pwd
+      Dir.mktmpdir do |dir|
+        # Resolve any symlinks in the temporary directory to match Dir.pwd's behavior
+        real_dir = File.realdirpath(dir)
+        Dir.chdir(real_dir) do
+          yaml_content = "openai_model: 'external-gpt-4o'\ntemperature: 0.7\n"
+          File.write(".norn.yml", yaml_content)
+
+          reader = described_class.new
+          expect(reader.root_path).to eq(real_dir)
+          expect(reader.read).to eq({
+            openai_model: "external-gpt-4o",
+            temperature: 0.7
+          })
+        end
+      end
+    end
+  end
 end

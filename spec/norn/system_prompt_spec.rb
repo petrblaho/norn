@@ -19,16 +19,24 @@ RSpec.describe "Dynamic System Prompt Compilation" do
   before do
     Norn::Config.config.update(
       sandbox_info: "Standard Sandbox Info",
-      instructions_override: nil,
-      custom_instructions: nil
+      instructions: {
+        clear: [],
+        base: nil,
+        prepend: [],
+        append: []
+      }
     )
   end
 
   after do
     Norn::Config.config.update(
       sandbox_info: "You are running in a secure sandboxed CLI environment.",
-      instructions_override: nil,
-      custom_instructions: nil
+      instructions: {
+        clear: [],
+        base: nil,
+        prepend: [],
+        append: []
+      }
     )
   end
 
@@ -38,21 +46,31 @@ RSpec.describe "Dynamic System Prompt Compilation" do
     expect(prompt).to include("Standard Mode Instructions")
   end
 
-  it "fully overrides the mode instructions when instructions_override is specified" do
-    Norn::Config.config.update(instructions_override: "Completely Overridden Instructions")
-    prompt = mode_instance.compile_system_prompt
+  describe "with the instructions config block" do
+    it "prepends, appends, and overrides base instructions correctly" do
+      Norn::Config.config.update(instructions: {
+        clear: [],
+        base: "Overridden Base",
+        prepend: ["Prepended Rule A", "Prepended Rule B"],
+        append: ["Appended Rule A", "Appended Rule B"]
+      })
 
-    expect(prompt).to include("Standard Sandbox Info")
-    expect(prompt).to include("Completely Overridden Instructions")
-    expect(prompt).not_to include("Standard Mode Instructions")
-  end
+      prompt = mode_instance.compile_system_prompt
 
-  it "appends custom instructions when custom_instructions is specified" do
-    Norn::Config.config.update(custom_instructions: "Appended Custom Rule")
-    prompt = mode_instance.compile_system_prompt
-
-    expect(prompt).to include("Standard Sandbox Info")
-    expect(prompt).to include("Standard Mode Instructions")
-    expect(prompt).to include("Appended Custom Rule")
+      expect(prompt).to include("Prepended Rule A")
+      expect(prompt).to include("Prepended Rule B")
+      expect(prompt).to include("Overridden Base")
+      expect(prompt).to include("Appended Rule A")
+      expect(prompt).to include("Appended Rule B")
+      expect(prompt).not_to include("Standard Mode Instructions")
+      
+      # Verify linear ordering
+      prompt_lines = prompt.split("\n").map(&:strip).reject(&:empty?)
+      expect(prompt_lines).to include("Prepended Rule A")
+      expect(prompt_lines).to include("Prepended Rule B")
+      expect(prompt_lines).to include("Overridden Base")
+      expect(prompt_lines).to include("Appended Rule A")
+      expect(prompt_lines).to include("Appended Rule B")
+    end
   end
 end

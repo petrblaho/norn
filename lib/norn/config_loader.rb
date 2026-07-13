@@ -11,11 +11,17 @@ module Norn
       optional(:openai_model).maybe(:string)
       optional(:gemini_model).maybe(:string)
       optional(:temperature).maybe(:float)
-      optional(:instructions_override).maybe(:string)
-      optional(:custom_instructions).maybe(:string)
       optional(:git_addon_enabled).maybe(:bool)
       optional(:git_addon_message).maybe(:string)
       optional(:session_cli_format).maybe(:string)
+      
+      # New instruction structure
+      optional(:instructions).hash do
+        optional(:clear).array(:string)
+        optional(:base).maybe(:string)
+        optional(:prepend).array(:string)
+        optional(:append).array(:string)
+      end
     end
 
     class << self
@@ -24,15 +30,18 @@ module Norn
       # Loads the config from XDG, Local Workspace, and Environment, in that order.
       # Returns the validated configuration hash wrapped in a Dry::Monads::Result.
       def load
+        global_config = load_first_match(global_paths) || {}
+        local_config = Norn::LocalConfigReader.new.read || {}
+
         config_data = {}
+        config_data.merge!(global_config)
+        config_data.merge!(local_config)
 
-        # 1. Load XDG Global Config
-        global_config = load_first_match(global_paths)
-        config_data.merge!(global_config) if global_config
-
-        # 2. Load Local Directory/Workspace Config using LocalConfigReader
-        local_config = Norn::LocalConfigReader.new.read
-        config_data.merge!(local_config) if local_config
+        # Merge instructions block customly
+        global_inst = global_config[:instructions] || {}
+        local_inst = local_config[:instructions] || {}
+        compiled_inst = compile_instructions_block(global_inst, local_inst)
+        config_data[:instructions] = compiled_inst
 
         # 3. Load Environment Variables
         if ENV["NORN_PROVIDER"] && !ENV["NORN_PROVIDER"].strip.empty?
@@ -99,7 +108,7 @@ module Norn
       def symbolize_keys(hash)
         return {} unless hash.is_a?(Hash)
         hash.each_with_object({}) do |(key, value), result|
-          result[key.to_sym] = value
+          result[key.to_sym] = value.is_a?(Hash) ? symbolize_keys(value) : value
         end
       end
 
@@ -108,6 +117,39 @@ module Norn
           hash[:llm_provider] = hash.delete(:provider)
         end
         hash
+      end
+
+      def compile_instructions_block(global_inst, local_inst)
+        state = {
+          clear: [],
+          base: nil,
+          prepend: [],
+          append: []
+        }
+
+        [global_inst, local_inst].compact.each do |inst|
+          # 1. Apply clear instructions
+          if inst[:clear].is_a?(Array)
+            clears = inst[:clear].map(&:to_s)
+            state[:base] = nil if clears.include?("base")
+            state[:prepend] = [] if clears.include?("prepend")
+            state[:append] = [] if clears.include?("append")
+            state[:clear] = (state[:clear] + clears).uniq
+          end
+
+          # 2. Merge new values at this level
+          state[:base] = inst[:base] if inst.key?(:base) && !inst[:base].nil?
+          
+          if inst[:prepend].is_a?(Array)
+            state[:prepend] += inst[:prepend]
+          end
+
+          if inst[:append].is_a?(Array)
+            state[:append] += inst[:append]
+          end
+        end
+
+        state
       end
     end
   end

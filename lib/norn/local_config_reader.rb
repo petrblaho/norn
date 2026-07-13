@@ -6,11 +6,7 @@ module Norn
     attr_reader :root_path
 
     def initialize(root_path = nil)
-      @root_path = root_path || begin
-        Norn::Container.config.root
-      rescue => e
-        Dir.pwd
-      end
+      @root_path = root_path || Dir.pwd
     end
 
     def local_config_paths
