@@ -11,7 +11,7 @@ module Norn
 
     def self.registered_secrets
       # Automatically discover and register environment keys on demand
-      ["GEMINI_API_KEY", "OPENAI_API_KEY", "NORN_PROVIDER_KEY"].each do |var|
+      ["GEMINI_API_KEY", "OPENAI_API_KEY"].each do |var|
         val = ENV[var]
         register_secret(val) if val
       end

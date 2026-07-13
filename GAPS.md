@@ -47,11 +47,11 @@ This document catalogues the functional gaps, unaligned parts, and refactoring o
 ## 4. Secret Scrubber Environment Key Inconsistencies
 
 * **File:** `lib/norn/secret_scrubber.rb`
-* **Current Status:** 🟡 **Minor Code Clean-up**
+* **Current Status:** 🟢 **Resolved**
 * **The Gap:**
-  `Norn::SecretScrubber` is configured to dynamically discover and cache the environment key `NORN_PROVIDER_KEY` as a generic secret to redact. However, this environment key is never used or set up in the configuration loaders or LLM client classes (which strictly look for `OPENAI_API_KEY` and `GEMINI_API_KEY`).
+  `Norn::SecretScrubber` was configured to dynamically discover and cache the environment key `NORN_PROVIDER_KEY` as a generic secret to redact. However, this environment key was never used or set up in the configuration loaders or LLM client classes (which strictly look for `OPENAI_API_KEY` and `GEMINI_API_KEY`).
 * **Action Required:**
-  * Clean up the unused reference or align the configuration system to allow `NORN_PROVIDER_KEY` as a unified alias for the active provider's API key.
+  * Resolved by completely removing `NORN_PROVIDER_KEY` from `SecretScrubber` and relying strictly on provider-specific API keys (`OPENAI_API_KEY` and `GEMINI_API_KEY`), ensuring clean separation.
 
 ---
 
