@@ -40,6 +40,34 @@ RSpec.describe Norn::Plugins::SlashCommands::SlashCommandsPlugin, norn_plugins: 
       expect(result.value![:output]).to include("Session and conversation history cleared")
       expect(mock_messages).to be_empty
     end
+
+    it "intercepts /tools to return a list of registered tools" do
+      # Mock a registered tool
+      mock_tool = Norn::Tool.new("test_introspection_tool", "Introspective test tool", {}, required_capabilities: [:sys_read])
+      allow(Norn::ToolRegistry).to receive(:registered_tools).and_return([mock_tool])
+
+      payload = { text: "/tools", action: :continue, mode: nil }
+      result = plugin.on_user_input(payload)
+
+      expect(result).to be_success
+      expect(result.value![:action]).to eq(:skip)
+      expect(result.value![:output]).to include("test_introspection_tool")
+      expect(result.value![:output]).to include("Introspective test tool")
+    end
+
+    it "intercepts /session to return session statistics when session is active" do
+      mock_session = double("Session", stats: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150, tool_calls: 5 })
+      allow(Norn).to receive(:[]).with("session").and_return(mock_session)
+
+      payload = { text: "/session", action: :continue, mode: nil }
+      result = plugin.on_user_input(payload)
+
+      expect(result).to be_success
+      expect(result.value![:action]).to eq(:skip)
+      expect(result.value![:output]).to include("Current Session Stats")
+      expect(result.value![:output]).to include("Prompt Tokens:     100")
+      expect(result.value![:output]).to include("Completion Tokens: 50")
+    end
   end
 
   describe "extensible slash command registration" do

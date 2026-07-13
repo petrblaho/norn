@@ -117,6 +117,40 @@ module Norn
             clear_message = "\e[1;32m🧹 Session and conversation history cleared.\e[0m"
             Dry::Monads::Success(payload.merge(action: :skip, output: clear_message))
           end
+
+          @registry.register("/tools", "List all registered tools, their required capabilities, and descriptions") do |payload|
+            tools = Norn::ToolRegistry.registered_tools
+            message = "\e[1;36m🔧 Registered Norn Tools:\e[0m\n"
+            if tools.empty?
+              message << "  No tools registered.\n"
+            else
+              tools.each do |tool|
+                caps = tool.required_capabilities.map(&:to_s).join(", ")
+                danger_str = tool.dangerous? ? " \e[1;31m[DANGEROUS]\e[0m" : ""
+                message << "  \e[1;32m%-15s\e[0m - #{tool.description} (Caps: \e[33m#{caps}\e[0m)#{danger_str}\n" % tool.name
+              end
+            end
+            Dry::Monads::Success(payload.merge(action: :skip, output: message))
+          end
+
+          @registry.register("/session", "Display token usage statistics and tool call metrics for the current session") do |payload|
+            begin
+              session = Norn["session"]
+              if session
+                stats = session.stats
+                message = "\e[1;36m📊 Current Session Stats:\e[0m\n" \
+                          "  Prompt Tokens:     #{stats[:prompt_tokens]}\n" \
+                          "  Completion Tokens: #{stats[:completion_tokens]}\n" \
+                          "  Total Tokens:      #{stats[:total_tokens]}\n" \
+                          "  Tool Calls:        #{stats[:tool_calls]}\n"
+              else
+                message = "\e[1;31mSession tracking is not active.\e[0m"
+              end
+            rescue => e
+              message = "\e[1;31mFailed to retrieve session statistics: #{e.message}\e[0m"
+            end
+            Dry::Monads::Success(payload.merge(action: :skip, output: message))
+          end
         end
       end
     end
