@@ -79,8 +79,26 @@ module Norn
         break if line.nil?
 
         line = line.strip
-        break if ["exit", "quit"].include?(line.downcase)
         next if line.empty?
+
+        input_payload = { text: line, action: :continue, output: nil, mode: self }
+        middleware_result = Norn::PluginManager.trigger_middleware(:on_user_input, input_payload)
+
+        if middleware_result.success?
+          resolved_payload = middleware_result.value!
+          if resolved_payload[:action] == :exit
+            @output.puts resolved_payload[:output] if resolved_payload[:output]
+            break
+          elsif resolved_payload[:action] == :skip
+            @output.puts resolved_payload[:output] if resolved_payload[:output]
+            next
+          else
+            line = resolved_payload[:text]
+          end
+        else
+          @output.puts "Error processing input: #{middleware_result.failure.message}"
+          next
+        end
 
         # Append user message
         @messages << { role: "user", content: line }
