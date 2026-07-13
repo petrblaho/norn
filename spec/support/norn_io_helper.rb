@@ -9,6 +9,7 @@ module Norn
         # We end each input with a newline to simulate pressing enter in gets/readline
         input_data = Array(initial_inputs).map { |inp| inp.end_with?("\n") ? inp : "#{inp}\n" }.join
         @input = StringIO.new(input_data)
+        def @input.wait_readable(timeout = nil); true; end
         @output = StringIO.new
       end
 
@@ -18,6 +19,7 @@ module Norn
         # Append and recreate StringIO to preserve stream reading pointer
         new_string = @input.string + (text.end_with?("\n") ? text : "#{text}\n")
         @input = StringIO.new(new_string)
+        def @input.wait_readable(timeout = nil); true; end
         @input.pos = current_pos
       end
 
