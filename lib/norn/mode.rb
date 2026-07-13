@@ -286,6 +286,7 @@ module Norn
             args = call[:arguments]
             id = call[:id]
 
+            @output.puts ""
             @output.puts "🔧 Running #{tool_name} with arguments: #{args.inspect}..."
 
             exec_result = execute_tool(tool_name, args)
@@ -317,6 +318,7 @@ module Norn
             return middleware_result
           end
 
+          @output.puts ""
           @output.puts "\e[1;34mNorn:\e[0m"
           @output.puts rendered_response
 
