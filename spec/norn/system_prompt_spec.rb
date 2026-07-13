@@ -55,4 +55,41 @@ RSpec.describe "Dynamic System Prompt Compilation" do
     expect(prompt).to include("Standard Mode Instructions")
     expect(prompt).to include("Appended Custom Rule")
   end
+
+  describe "with the new instructions config block" do
+    after do
+      Norn::Config.config.update(instructions: {
+        clear: [],
+        base: nil,
+        prepend: [],
+        append: []
+      })
+    end
+
+    it "prepends, appends, and overrides base instructions correctly" do
+      Norn::Config.config.update(instructions: {
+        clear: [],
+        base: "Overridden Base",
+        prepend: ["Prepended Rule A", "Prepended Rule B"],
+        append: ["Appended Rule A", "Appended Rule B"]
+      })
+
+      prompt = mode_instance.compile_system_prompt
+
+      expect(prompt).to include("Prepended Rule A")
+      expect(prompt).to include("Prepended Rule B")
+      expect(prompt).to include("Overridden Base")
+      expect(prompt).to include("Appended Rule A")
+      expect(prompt).to include("Appended Rule B")
+      expect(prompt).not_to include("Standard Mode Instructions")
+      
+      # Verify linear ordering
+      prompt_lines = prompt.split("\n").map(&:strip).reject(&:empty?)
+      expect(prompt_lines).to include("Prepended Rule A")
+      expect(prompt_lines).to include("Prepended Rule B")
+      expect(prompt_lines).to include("Overridden Base")
+      expect(prompt_lines).to include("Appended Rule A")
+      expect(prompt_lines).to include("Appended Rule B")
+    end
+  end
 end

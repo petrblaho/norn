@@ -81,5 +81,73 @@ RSpec.describe Norn::ConfigLoader do
       # Should fallback to default because validation failed
       expect(Norn.config.llm_provider).to eq("openai")
     end
+
+    describe "cascading instructions configuration with explicit clear" do
+      after do
+        # Clean up config state
+        Norn::Config.config.update(instructions: {
+          clear: [],
+          base: nil,
+          prepend: [],
+          append: []
+        })
+      end
+
+      it "merges global and local instructions, and applies granular clear correctly" do
+        global_path = File.join(Dir.home, ".config", "norn", "config.yml")
+        local_path = File.join(Dir.pwd, ".norn.yml")
+
+        allow(File).to receive(:exist?).with(global_path).and_return(true)
+        allow(File).to receive(:exist?).with(local_path).and_return(true)
+
+        # Global specifies base and append
+        allow(YAML).to receive(:load_file).with(global_path).and_return({
+          instructions: {
+            base: "you are clever",
+            prepend: ["global prepend"],
+            append: ["always talk in rhymes"]
+          }
+        })
+
+        # Local specifies base override, prepends, and clears append and prepend
+        allow(YAML).to receive(:load_file).with(local_path).and_return({
+          instructions: {
+            clear: ["prepend", "append"],
+            base: "you are stupid",
+            prepend: ["use czech"]
+          }
+        })
+
+        described_class.load
+
+        expect(Norn.config.instructions).to eq({
+          clear: ["prepend", "append"],
+          base: "you are stupid",
+          prepend: ["use czech"], # global prepend was cleared before local prepend was added
+          append: []              # global append was cleared
+        })
+      end
+
+      it "works properly with JSON configuration files" do
+        local_path = File.join(Dir.pwd, ".norn.json")
+        allow(File).to receive(:exist?).with(local_path).and_return(true)
+
+        json_content = '{"instructions": {"clear": ["base"], "prepend": ["from json"]}}'
+        allow(File).to receive(:read).with(local_path).and_return(json_content)
+
+        # Mock JSON parse
+        allow(JSON).to receive(:parse).with(json_content).and_return({
+          "instructions" => {
+            "clear" => ["base"],
+            "prepend" => ["from json"]
+          }
+        })
+
+        described_class.load
+
+        expect(Norn.config.instructions[:clear]).to eq(["base"])
+        expect(Norn.config.instructions[:prepend]).to eq(["from json"])
+      end
+    end
   end
 end
