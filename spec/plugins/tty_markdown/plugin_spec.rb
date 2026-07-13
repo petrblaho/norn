@@ -6,12 +6,15 @@ RSpec.describe "TTY Markdown Plugin" do
   include Dry::Monads[:result]
 
   before do
+    Norn::Plugin.clear!
     Norn::PluginManager.reset!
     # Load the plugin
     load File.expand_path("plugins/tty_markdown/plugin.rb", Dir.pwd)
   end
 
   after do
+    Norn::Plugin.clear!
+    Norn::PluginLoader.load_all
     Norn::PluginManager.reset!
   end
 

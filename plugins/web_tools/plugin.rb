@@ -21,13 +21,13 @@ module Norn
             end
 
             response_or_err = fetch_with_redirects(uri, MAX_REDIRECTS)
-            case response_or_err
-            when Net::HTTPSuccess
+            if response_or_err.is_a?(Net::HTTPSuccess)
               clean_html(response_or_err.body)
-            when String
+            elsif response_or_err.is_a?(String)
               response_or_err
             else
-              "Error: Failed to fetch URL (HTTP Status #{response_or_err.code})"
+              code = response_or_err.respond_to?(:code) ? response_or_err.code : nil
+              "Error: Failed to fetch URL (HTTP Status #{code})"
             end
           end
 
@@ -56,10 +56,9 @@ module Norn
               return "Error: Network exception - #{e.class} #{e.message}."
             end
 
-            case response
-            when Net::HTTPSuccess
+            if response.is_a?(Net::HTTPSuccess)
               response
-            when Net::HTTPRedirection
+            elsif response.is_a?(Net::HTTPRedirection)
               location = response["location"]
               return "Error: Redirect location header missing." unless location
 
