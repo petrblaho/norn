@@ -9,13 +9,13 @@ RSpec.describe "Dynamic Hooks and Monadic ROP Middlewares" do
 
   before do
     Norn::PluginManager.reset!
-    Norn::Plugin.clear!
+    Norn::Plugin.registered_plugins.reject! { |klass| klass.name.nil? }
     Norn::PluginManager.register_core_hooks!
   end
 
   after do
     Norn::PluginManager.reset!
-    Norn::Plugin.clear!
+    Norn::Plugin.registered_plugins.reject! { |klass| klass.name.nil? }
     Norn::PluginManager.register_core_hooks!
   end
 

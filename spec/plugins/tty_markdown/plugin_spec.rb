@@ -1,4 +1,5 @@
 require "spec_helper"
+require_relative "../../../plugins/tty_markdown/plugin"
 require "tty-markdown"
 require "dry/monads"
 
@@ -7,8 +8,7 @@ RSpec.describe "TTY Markdown Plugin" do
 
   before do
     Norn::PluginManager.reset!
-    # Load the plugin
-    load File.expand_path("plugins/tty_markdown/plugin.rb", Dir.pwd)
+    Norn::PluginManager.active_plugins = [TTYMarkdownPlugin.new]
   end
 
   after do
