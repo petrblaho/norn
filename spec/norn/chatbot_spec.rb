@@ -8,20 +8,10 @@ RSpec.describe Norn::Modes::Chat do
 
   let(:input) { StringIO.new("hello\nexit\n") }
   let(:output) { StringIO.new }
-  let(:mock_client) { double("LLMClient", model: "mock-model") }
-
-  before do
-    allow(Norn::Container).to receive(:[]).and_call_original
-    allow(Norn::Container).to receive(:[]).with("llm.mock_provider").and_return(mock_client)
-    Norn.config.llm_provider = "mock_provider"
-  end
 
   describe "#start" do
     it "runs the REPL loop, executes LLM call, triggers hooks, and exits" do
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array),
-        any_args
-      ).and_return(Success("Hello back!"))
+      stub_llm_response("Hello back!", provider: "mock_provider")
 
       # Trace hooks
       before_called = false
@@ -60,10 +50,7 @@ RSpec.describe Norn::Modes::Chat do
     end
 
     it "uses the provided prompt for the first turn and then continues" do
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array),
-        any_args
-      ).and_return(Success("Prompt response!"))
+      stub_llm_response("Prompt response!", provider: "mock_provider")
 
       chatbot = described_class.new(input: StringIO.new("exit\n"), output: output)
       chatbot.start("my initial prompt")

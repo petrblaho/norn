@@ -7,13 +7,6 @@ RSpec.describe Norn::Modes::Task do
   include Dry::Monads[:result]
 
   let(:output) { StringIO.new }
-  let(:mock_client) { double("LLMClient", model: "mock-model") }
-
-  before do
-    allow(Norn::Container).to receive(:[]).and_call_original
-    allow(Norn::Container).to receive(:[]).with("llm.mock_provider").and_return(mock_client)
-    Norn.config.llm_provider = "mock_provider"
-  end
 
   describe "#start" do
     it "returns failure if no prompt is given" do
@@ -33,29 +26,23 @@ RSpec.describe Norn::Modes::Task do
       end
       Norn::ToolRegistry.register(mock_tool)
 
-      # 1st LLM call: returns a tool call wrapped in Success
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array),
-        tools: [mock_tool]
-      ).and_return(Success({
-        type: :tool_call,
-        calls: [
-          {
-            id: "call_123",
-            name: "test_tool",
-            arguments: { val: "my-val" }
-          }
-        ]
-      }))
-
-      # 2nd LLM call: returns text response after receiving tool result wrapped in Success
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array),
-        tools: [mock_tool]
-      ).and_return(Success({
-        type: :text,
-        content: "I have successfully run the tool and completed the task!"
-      }))
+      # Stub sequential LLM calls
+      stub_llm_responses([
+        {
+          type: :tool_call,
+          calls: [
+            {
+              id: "call_123",
+              name: "test_tool",
+              arguments: { val: "my-val" }
+            }
+          ]
+        },
+        {
+          type: :text,
+          content: "I have successfully run the tool and completed the task!"
+        }
+      ], provider: "mock_provider")
 
       # Mock rendering hook
       rendered_called = false
@@ -104,27 +91,23 @@ RSpec.describe Norn::Modes::Task do
     it "handles missing or failing tools gracefully" do
       Norn::ToolRegistry.clear!
 
-      # LLM calls a non-existent tool wrapped in Success
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array)
-      ).and_return(Success({
-        type: :tool_call,
-        calls: [
-          {
-            id: "call_999",
-            name: "missing_tool",
-            arguments: {}
-          }
-        ]
-      }))
-
-      # LLM responds after the failure wrapped in Success
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array)
-      ).and_return(Success({
-        type: :text,
-        content: "Tool missing error handled."
-      }))
+      # Stub sequential LLM calls
+      stub_llm_responses([
+        {
+          type: :tool_call,
+          calls: [
+            {
+              id: "call_999",
+              name: "missing_tool",
+              arguments: {}
+            }
+          ]
+        },
+        {
+          type: :text,
+          content: "Tool missing error handled."
+        }
+      ], provider: "mock_provider")
 
       task_mode = described_class.new(output: output)
       result = task_mode.start("Call missing tool")

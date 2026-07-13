@@ -38,4 +38,5 @@ RSpec.configure do |config|
   # Require and load our plugin helper *after* the global before(:each) hook
   # so that the metadata setup runs after the global plugin reset.
   require_relative "support/norn_plugins_helper"
+  require_relative "support/norn_llm_helper"
 end
