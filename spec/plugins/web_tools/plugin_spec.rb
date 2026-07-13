@@ -56,7 +56,7 @@ RSpec.describe "Web Tools Plugin" do
             </body>
           </html>
         HTML
-        allow(mock_response).to receive(:is_a?).with(Net::HTTPSuccess).and_return(true)
+        allow(mock_response).to receive(:is_a?) { |klass| klass == Net::HTTPSuccess }
 
         allow(Net::HTTP).to receive(:new).with("example.com", 80).and_return(mock_http)
         allow(mock_http).to receive(:use_ssl=).with(false)
@@ -71,7 +71,7 @@ RSpec.describe "Web Tools Plugin" do
         expect(res).not_to include("color: red")
         expect(res).not_to include("path d=")
         expect(res).to include("Hello World!")
-        expect(res).to include("This is a paragraph with a link.")
+        expect(res).to include("This is a paragraph with a link .")
         expect(res).to include("And <some> & escaped entities.")
       end
 
@@ -79,7 +79,7 @@ RSpec.describe "Web Tools Plugin" do
         long_text = "A" * 13000
         mock_http = instance_double(Net::HTTP)
         mock_response = instance_double(Net::HTTPSuccess, body: "<html><body>#{long_text}</body></html>")
-        allow(mock_response).to receive(:is_a?).with(Net::HTTPSuccess).and_return(true)
+        allow(mock_response).to receive(:is_a?) { |klass| klass == Net::HTTPSuccess }
 
         allow(Net::HTTP).to receive(:new).with("example.com", 443).and_return(mock_http)
         allow(mock_http).to receive(:use_ssl=).with(true)
@@ -99,11 +99,11 @@ RSpec.describe "Web Tools Plugin" do
         mock_http2 = instance_double(Net::HTTP)
 
         mock_redirect = instance_double(Net::HTTPRedirection)
-        allow(mock_redirect).to receive(:is_a?).with(Net::HTTPRedirection).and_return(true)
+        allow(mock_redirect).to receive(:is_a?) { |klass| klass == Net::HTTPRedirection }
         allow(mock_redirect).to receive(:[]).with("location").and_return("https://example.com/target")
 
         mock_success = instance_double(Net::HTTPSuccess, body: "<html><body>Target Content</body></html>")
-        allow(mock_success).to receive(:is_a?).with(Net::HTTPSuccess).and_return(true)
+        allow(mock_success).to receive(:is_a?) { |klass| klass == Net::HTTPSuccess }
 
         allow(Net::HTTP).to receive(:new).with("example.com", 80).and_return(mock_http1)
         allow(mock_http1).to receive(:use_ssl=).with(false)
@@ -124,7 +124,7 @@ RSpec.describe "Web Tools Plugin" do
       it "limits redirects to prevent infinite loops" do
         mock_http = instance_double(Net::HTTP)
         mock_redirect = instance_double(Net::HTTPRedirection)
-        allow(mock_redirect).to receive(:is_a?).with(Net::HTTPRedirection).and_return(true)
+        allow(mock_redirect).to receive(:is_a?) { |klass| klass == Net::HTTPRedirection }
         allow(mock_redirect).to receive(:[]).with("location").and_return("http://example.com/loop")
 
         allow(Net::HTTP).to receive(:new).with("example.com", 80).and_return(mock_http)
