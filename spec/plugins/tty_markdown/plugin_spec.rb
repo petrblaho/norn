@@ -21,8 +21,7 @@ RSpec.describe "TTY Markdown Plugin" do
 
   after do
     Norn::PluginManager.reset!
-    Norn::Plugin.clear!
-    @orig_plugins.each { |p| Norn::Plugin.registered_plugins << p }
+    Norn::Plugin.instance_variable_set(:@registered_plugins, @orig_plugins)
     Norn::PluginManager.register_core_hooks!
   end
 
