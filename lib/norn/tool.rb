@@ -34,14 +34,29 @@ module Norn
       symbolized_args = symbolize_keys(args)
       
       # Pass both arguments and the execution context (the calling mode instance) to the block
-      if @block.arity == 2
+      result = if @block.arity == 2
         @block.call(symbolized_args, context)
       else
         @block.call(symbolized_args)
       end
+
+      sanitize_output(result)
     end
 
     private
+
+    def sanitize_output(object)
+      case object
+      when String
+        object.dup.force_encoding("UTF-8").scrub
+      when Hash
+        object.each_with_object({}) { |(k, v), h| h[k] = sanitize_output(v) }
+      when Array
+        object.map { |v| sanitize_output(v) }
+      else
+        object
+      end
+    end
 
     def symbolize_keys(hash)
       return hash unless hash.is_a?(Hash)
