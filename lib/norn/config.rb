@@ -9,8 +9,6 @@ module Norn
     setting :openai_model, default: "gpt-4o-mini"
     setting :gemini_model, default: "gemini-3.5-flash"
     setting :temperature, default: 0.7
-    setting :instructions_override, default: nil
-    setting :custom_instructions, default: nil
     setting :instructions, default: {
       clear: [],
       base: nil,

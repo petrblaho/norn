@@ -225,7 +225,7 @@ module Norn
       inst_conf = Norn.config.instructions || {}
       
       # Determine base instructions
-      base_inst = inst_conf[:base] || Norn.config.instructions_override || instructions
+      base_inst = inst_conf[:base] || instructions
       
       # Prepend rules
       if inst_conf[:prepend].is_a?(Array)
@@ -254,11 +254,6 @@ module Norn
       if tool_directives.any?
         compiled_directives = "TOOL EXECUTION DIRECTIVES:\n" + tool_directives.map { |d| "• #{d}" }.join("\n")
         system_parts << compiled_directives
-      end
-
-      # 3. Custom instructions (Legacy appended rules/constraints)
-      if Norn.config.custom_instructions && !Norn.config.custom_instructions.strip.empty?
-        system_parts << Norn.config.custom_instructions
       end
 
       system_parts.reject(&:empty?).join("\n\n")
