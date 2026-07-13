@@ -39,4 +39,5 @@ RSpec.configure do |config|
   # so that the metadata setup runs after the global plugin reset.
   require_relative "support/norn_plugins_helper"
   require_relative "support/norn_llm_helper"
+  require_relative "support/norn_io_helper"
 end

@@ -6,9 +6,6 @@ require "dry/monads"
 RSpec.describe Norn::Modes::Chat do
   include Dry::Monads[:result]
 
-  let(:input) { StringIO.new("hello\nexit\n") }
-  let(:output) { StringIO.new }
-
   describe "#start" do
     it "runs the REPL loop, executes LLM call, triggers hooks, and exits" do
       stub_llm_response("Hello back!", provider: "mock_provider")
@@ -28,17 +25,18 @@ RSpec.describe Norn::Modes::Chat do
         after_called = true
       end
 
-      chatbot = described_class.new(input: input, output: output)
+      io = norn_io("hello", "exit")
+      chatbot = described_class.new(input: io.input, output: io.output)
       chatbot.start
 
-      output_str = output.string
-
-      expect(output_str).to include("Norn MVP Chatbot initialized")
-      expect(output_str).to include("Using active provider: mock_provider")
-      expect(output_str).to include("You: hello")
-      expect(output_str).to include("Norn:")
-      expect(output_str).to include("Hello back!")
-      expect(output_str).to include("Goodbye!")
+      expect(io).to have_produced_in_order(
+        "Norn MVP Chatbot initialized",
+        "Using active provider: mock_provider",
+        "You: hello",
+        "Norn:",
+        "Hello back!",
+        "Goodbye!"
+      )
       
       expect(before_called).to be(true)
       expect(after_called).to be(true)
@@ -52,13 +50,15 @@ RSpec.describe Norn::Modes::Chat do
     it "uses the provided prompt for the first turn and then continues" do
       stub_llm_response("Prompt response!", provider: "mock_provider")
 
-      chatbot = described_class.new(input: StringIO.new("exit\n"), output: output)
+      io = norn_io("exit")
+      chatbot = described_class.new(input: io.input, output: io.output)
       chatbot.start("my initial prompt")
 
-      output_str = output.string
-      expect(output_str).to include("You: my initial prompt")
-      expect(output_str).to include("Prompt response!")
-      expect(output_str).to include("Goodbye!")
+      expect(io).to have_produced_in_order(
+        "You: my initial prompt",
+        "Prompt response!",
+        "Goodbye!"
+      )
       expect(chatbot.messages).to eq([
         { role: "user", content: "my initial prompt" },
         { role: "assistant", content: "Prompt response!" }
@@ -68,10 +68,11 @@ RSpec.describe Norn::Modes::Chat do
     it "handles missing LLM providers gracefully" do
       Norn.config.llm_provider = "missing_provider"
       
-      chatbot = described_class.new(input: StringIO.new("hello\nexit\n"), output: output)
+      io = norn_io("hello", "exit")
+      chatbot = described_class.new(input: io.input, output: io.output)
       chatbot.start
 
-      expect(output.string).to include("Error: LLM provider 'missing_provider' is not registered.")
+      expect(io).to have_produced("Error: LLM provider 'missing_provider' is not registered.")
     end
   end
 end

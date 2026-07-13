@@ -6,11 +6,10 @@ require "dry/monads"
 RSpec.describe Norn::Modes::Task do
   include Dry::Monads[:result]
 
-  let(:output) { StringIO.new }
-
   describe "#start" do
     it "returns failure if no prompt is given" do
-      task_mode = described_class.new(output: output)
+      io = norn_io
+      task_mode = described_class.new(output: io.output)
       expect(task_mode.start(nil)).to be_failure
       expect(task_mode.start("   ")).to be_failure
     end
@@ -52,16 +51,18 @@ RSpec.describe Norn::Modes::Task do
         payload
       end
 
-      task_mode = described_class.new(output: output)
+      io = norn_io
+      task_mode = described_class.new(output: io.output)
       result = task_mode.start("Use the test tool with my-val")
 
       expect(result).to be_success
 
-      output_str = output.string
-      expect(output_str).to include("Norn Autonomous Task Agent initialized.")
-      expect(output_str).to include("🔧 Running test_tool with arguments:")
-      expect(output_str).to include("my-val")
-      expect(output_str).to include("RENDERED: I have successfully run the tool and completed the task!")
+      expect(io).to have_produced_in_order(
+        "Norn Autonomous Task Agent initialized.",
+        "Running test_tool with arguments:",
+        "my-val",
+        "RENDERED: I have successfully run the tool and completed the task!"
+      )
       expect(tool_executed).to be(true)
       expect(rendered_called).to be(true)
 
@@ -109,11 +110,12 @@ RSpec.describe Norn::Modes::Task do
         }
       ], provider: "mock_provider")
 
-      task_mode = described_class.new(output: output)
+      io = norn_io
+      task_mode = described_class.new(output: io.output)
       result = task_mode.start("Call missing tool")
 
       expect(result).to be_success
-      expect(output.string).to include("🔧 Running missing_tool")
+      expect(io).to have_produced("Running missing_tool")
       expect(task_mode.messages).to include(
         hash_including(role: "tool", content: "Error: Tool 'missing_tool' not found in registry.")
       )
