@@ -1,12 +1,9 @@
 require "spec_helper"
 require "net/http"
 
-RSpec.describe "Web Tools Plugin" do
+RSpec.describe "Web Tools Plugin", norn_plugins: :web_tools do
   before do
     Norn::ToolRegistry.clear!
-    # Load the plugin
-    load File.expand_path("plugins/web_tools/plugin.rb", Dir.pwd)
-    # Re-trigger tool registration to populate ToolRegistry
     Norn::PluginManager.trigger(:on_tool_register, Norn::ToolRegistry)
   end
 

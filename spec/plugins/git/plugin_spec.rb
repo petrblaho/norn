@@ -1,11 +1,11 @@
 require "spec_helper"
-require_relative "../../../plugins/git/plugin"
 
-RSpec.describe GitPlugin do
+RSpec.describe GitPlugin, norn_plugins: :git do
   let(:registry) { Norn::ToolRegistry }
 
   before do
     Norn::ToolRegistry.clear!
+    Norn::PluginManager.trigger(:on_tool_register, registry)
   end
 
   after do
@@ -23,10 +23,7 @@ RSpec.describe GitPlugin do
   end
 
   describe "#on_tool_register" do
-    let(:plugin) { described_class.new }
-
     it "registers the git tool in the global ToolRegistry" do
-      plugin.on_tool_register(registry)
       git_tool = registry.resolve("git")
 
       expect(git_tool).not_to be_nil
@@ -101,12 +98,6 @@ RSpec.describe GitPlugin do
   end
 
   describe "Mocked command execution" do
-    let(:plugin) { described_class.new }
-
-    before do
-      plugin.on_tool_register(registry)
-    end
-
     it "executes command using array parameter capture without shell wrappers" do
       git_tool = registry.resolve("git")
       

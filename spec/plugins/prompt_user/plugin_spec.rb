@@ -3,12 +3,9 @@ require "norn/tool"
 require "norn/mode"
 require "stringio"
 
-RSpec.describe "PromptUserPlugin and prompt_user tool" do
+RSpec.describe "PromptUserPlugin and prompt_user tool", norn_plugins: :prompt_user do
   before do
     Norn::ToolRegistry.clear!
-    # Load and auto-register the PromptUserPlugin
-    load File.expand_path("plugins/prompt_user/plugin.rb", Dir.pwd)
-    # Trigger tool registration
     Norn::PluginManager.trigger(:on_tool_register, Norn::ToolRegistry)
   end
 

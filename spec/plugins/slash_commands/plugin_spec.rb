@@ -1,9 +1,7 @@
 require "spec_helper"
-require_relative "../../../plugins/slash_commands/plugin"
-require "norn/plugin_manager"
 
-RSpec.describe Norn::Plugins::SlashCommands::SlashCommandsPlugin do
-  let(:plugin) { described_class.new }
+RSpec.describe Norn::Plugins::SlashCommands::SlashCommandsPlugin, norn_plugins: :slash_commands do
+  let(:plugin) { norn_plugin(:slash_commands) }
 
   describe "#on_user_input with built-ins" do
     it "intercepts exit and quit to return :exit action" do

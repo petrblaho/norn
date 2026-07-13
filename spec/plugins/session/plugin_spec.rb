@@ -1,19 +1,8 @@
 require "spec_helper"
-require_relative "../../../plugins/session/plugin"
 
-RSpec.describe Norn::Plugins::Session::SessionPlugin do
-  let(:plugin) { described_class.new }
+RSpec.describe Norn::Plugins::Session::SessionPlugin, norn_plugins: :session do
+  let(:plugin) { norn_plugin(:session) }
   let(:container) { Norn::Container }
-
-  before do
-    # Reset plugin manager and reload standard hooks
-    Norn::PluginManager.reset!
-    Norn::PluginManager.register_core_hooks!
-  end
-
-  after do
-    Norn::PluginManager.reset!
-  end
 
   describe "Plugin configuration" do
     it "defines the correct plugin name" do

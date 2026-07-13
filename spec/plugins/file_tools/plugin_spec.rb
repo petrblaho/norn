@@ -1,12 +1,9 @@
 require "spec_helper"
 require "fileutils"
 
-RSpec.describe "File Tools Plugin" do
+RSpec.describe "File Tools Plugin", norn_plugins: :file_tools do
   before do
     Norn::ToolRegistry.clear!
-    # Load the plugin
-    load File.expand_path("plugins/file_tools/plugin.rb", Dir.pwd)
-    # Re-trigger tool registration to populate ToolRegistry
     Norn::PluginManager.trigger(:on_tool_register, Norn::ToolRegistry)
   end
 

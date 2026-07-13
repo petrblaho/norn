@@ -1,11 +1,11 @@
 require "spec_helper"
-require_relative "../../../plugins/rspec/plugin"
 
-RSpec.describe RSpecPlugin do
+RSpec.describe RSpecPlugin, norn_plugins: :rspec do
   let(:registry) { Norn::ToolRegistry }
 
   before do
     Norn::ToolRegistry.clear!
+    Norn::PluginManager.trigger(:on_tool_register, registry)
   end
 
   after do
@@ -23,10 +23,7 @@ RSpec.describe RSpecPlugin do
   end
 
   describe "#on_tool_register" do
-    let(:plugin) { described_class.new }
-
     it "registers the rspec tool in the global ToolRegistry" do
-      plugin.on_tool_register(registry)
       rspec_tool = registry.resolve("rspec")
 
       expect(rspec_tool).not_to be_nil
@@ -50,12 +47,6 @@ RSpec.describe RSpecPlugin do
   end
 
   describe "Mocked command execution" do
-    let(:plugin) { described_class.new }
-
-    before do
-      plugin.on_tool_register(registry)
-    end
-
     context "when Gemfile is present" do
       it "runs with bundle exec rspec" do
         rspec_tool = registry.resolve("rspec")
