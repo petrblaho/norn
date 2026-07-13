@@ -91,6 +91,8 @@ class GitPlugin < Norn::Plugin
       begin
         root = File.expand_path(Norn::Container.config.root)
         stdout, stderr, status = Open3.capture3(*cmd, chdir: root)
+        stdout = stdout.to_s.dup.force_encoding("UTF-8").scrub
+        stderr = stderr.to_s.dup.force_encoding("UTF-8").scrub
 
         if status.success?
           stdout.empty? ? "Command executed successfully (no output)." : stdout

@@ -70,6 +70,8 @@ class RSpecPlugin < Norn::Plugin
 
       begin
         stdout, stderr, status = Open3.capture3(*cmd, chdir: root)
+        stdout = stdout.to_s.dup.force_encoding("UTF-8").scrub
+        stderr = stderr.to_s.dup.force_encoding("UTF-8").scrub
 
         if status.success?
           stdout.empty? ? "Tests passed successfully (no output)." : stdout

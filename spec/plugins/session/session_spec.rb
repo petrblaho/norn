@@ -123,5 +123,16 @@ RSpec.describe Norn::Session do
       data[:metadata][:nested][:value] = 99
       expect(session.get(:metadata)[:nested][:value]).to eq(42)
     end
+
+    it "ensures all strings in the copy are converted to valid UTF-8 and not BINARY" do
+      binary_str = "hello \xFF".b
+      session.set(:binary_key, binary_str)
+
+      data = session.to_h
+      copied_str = data[:binary_key]
+
+      expect(copied_str.encoding).to eq(Encoding::UTF_8)
+      expect(copied_str.valid_encoding?).to be(true)
+    end
   end
 end
