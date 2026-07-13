@@ -47,7 +47,7 @@ class RSpecPlugin < Norn::Plugin
       RSPEC_SCHEMA,
       system_instructions: "Use the 'rspec' tool to run tests and verify code correctness. You can run specific test files, line numbers, or folders."
     ) do |args, _context|
-      root = File.expand_path(Norn::Container.config.root)
+      root = File.expand_path(Norn.workspace_root)
       gemfile_path = File.join(root, "Gemfile")
 
       cmd = []

@@ -164,7 +164,7 @@ module Norn
         if ["file_write", "file_edit"].include?(tool_name)
           # Interactive File Diff Previewer
           begin
-            root = File.expand_path(Norn::Container.config.root)
+            root = File.expand_path(Norn.workspace_root)
             abs_path = File.expand_path(args[:path], root)
             raise SecurityError, "Path traversal attempt detected" unless abs_path.start_with?(root)
 

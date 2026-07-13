@@ -35,7 +35,7 @@ RSpec.describe "File Tools Plugin", norn_plugins: :file_tools do
       expect(read_slice).to eq("2: line 2")
 
       # Clean up
-      FileUtils.rm_f(File.expand_path(test_file, Norn::Container.config.root))
+      FileUtils.rm_f(File.expand_path(test_file, Norn.workspace_root))
     end
 
     it "prevents directory traversal outside root" do
@@ -66,7 +66,7 @@ RSpec.describe "File Tools Plugin", norn_plugins: :file_tools do
       expect(read_res).to eq("1: class NornAgent\n2:   def self.run; end\n3: end")
 
       # Clean up
-      FileUtils.rm_f(File.expand_path(test_file, Norn::Container.config.root))
+      FileUtils.rm_f(File.expand_path(test_file, Norn.workspace_root))
     end
   end
 

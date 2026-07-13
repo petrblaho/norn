@@ -4,6 +4,7 @@ module Norn
   class Config
     extend Dry::Configurable
 
+    setting :workspace_root, default: Dir.pwd
     setting :llm_provider, default: "openai"
     setting :sandbox_info, default: "You are running in a secure sandboxed CLI environment."
     setting :openai_model, default: "gpt-4o-mini"

@@ -3,7 +3,7 @@ module Norn
     module FileTools
       module PathHelper
         def self.resolve_and_verify(relative_path)
-          root = File.expand_path(Norn::Container.config.root)
+          root = File.expand_path(Norn.workspace_root)
           # Expand the absolute path
           absolute_path = File.expand_path(relative_path, root)
           

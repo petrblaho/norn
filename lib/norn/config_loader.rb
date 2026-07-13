@@ -14,6 +14,7 @@ module Norn
       optional(:git_addon_enabled).maybe(:bool)
       optional(:git_addon_message).maybe(:string)
       optional(:session_cli_format).maybe(:string)
+      optional(:workspace_root).maybe(:string)
       
       # New instruction structure
       optional(:instructions).hash do

@@ -34,6 +34,10 @@ module Norn
     Config.config
   end
 
+  def self.workspace_root
+    config.workspace_root || Dir.pwd
+  end
+
   def self.configure
     yield(Config.config)
   end
