@@ -8,14 +8,15 @@ RSpec.describe "Dynamic Hooks and Monadic ROP Middlewares" do
   include Dry::Monads[:result]
 
   before do
-    Norn::PluginManager.reset!
     Norn::Plugin.registered_plugins.reject! { |klass| klass.name.nil? }
+    @orig_plugins = Norn::Plugin.registered_plugins.dup
+    Norn::PluginManager.reset!
     Norn::PluginManager.register_core_hooks!
   end
 
   after do
     Norn::PluginManager.reset!
-    Norn::Plugin.registered_plugins.reject! { |klass| klass.name.nil? }
+    Norn::Plugin.instance_variable_set(:@registered_plugins, @orig_plugins)
     Norn::PluginManager.register_core_hooks!
   end
 
