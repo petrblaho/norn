@@ -93,7 +93,9 @@ module Norn
         object.each_with_object({}) { |(k, v), h| h[k] = deep_dup(v) }
       when Array
         object.map { |v| deep_dup(v) }
-      when Symbol, Numeric, String, TrueClass, FalseClass, NilClass
+      when String
+        object.dup.force_encoding("UTF-8").scrub
+      when Symbol, Numeric, TrueClass, FalseClass, NilClass
         object
       else
         object.respond_to?(:dup) ? object.dup : object
