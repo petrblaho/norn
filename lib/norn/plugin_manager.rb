@@ -13,6 +13,27 @@ module Norn
     class << self
       attr_accessor :active_plugins
 
+      def ensure_active_plugins!
+        return unless @active_plugins.empty? && Norn::Plugin.registered_plugins.any?
+
+        # Guard against recursive instantiation on the same thread
+        return if Thread.current[:norn_instantiating_plugins]
+
+        @lock.synchronize do
+          return unless @active_plugins.empty?
+        end
+
+        Thread.current[:norn_instantiating_plugins] = true
+        begin
+          plugins = Norn::Plugin.registered_plugins.map(&:new)
+          @lock.synchronize do
+            @active_plugins = plugins if @active_plugins.empty?
+          end
+        ensure
+          Thread.current[:norn_instantiating_plugins] = false
+        end
+      end
+
       # Subscribe a block to a specific hook event
       def subscribe(event, &block)
         @lock.synchronize do
@@ -45,9 +66,7 @@ module Norn
         end
 
         # Auto-instantiate registered plugins if active_plugins is empty (crucial for spec environments)
-        if @active_plugins.empty? && Norn::Plugin.registered_plugins.any?
-          @active_plugins = Norn::Plugin.registered_plugins.map(&:new)
-        end
+        ensure_active_plugins!
 
         # 2. Call matching instance methods on registered OO plugin instances
         @active_plugins.each do |plugin|
@@ -70,9 +89,7 @@ module Norn
         subscribers = @lock.synchronize { @subscribers[event.to_sym].dup }
 
         # Auto-instantiate registered plugins if active_plugins is empty (crucial for spec environments)
-        if @active_plugins.empty? && Norn::Plugin.registered_plugins.any?
-          @active_plugins = Norn::Plugin.registered_plugins.map(&:new)
-        end
+        ensure_active_plugins!
 
         @active_plugins.each do |plugin|
           subscribers << plugin if plugin.respond_to?(event.to_sym)
