@@ -34,4 +34,10 @@ RSpec.configure do |config|
       sandbox_info: "You are running in a secure sandboxed CLI environment."
     )
   end
+
+  # Require and load our plugin helper *after* the global before(:each) hook
+  # so that the metadata setup runs after the global plugin reset.
+  require_relative "support/norn_plugins_helper"
+  require_relative "support/norn_llm_helper"
+  require_relative "support/norn_io_helper"
 end

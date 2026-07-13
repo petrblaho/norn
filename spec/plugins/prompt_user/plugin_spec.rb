@@ -1,14 +1,10 @@
 require "spec_helper"
 require "norn/tool"
 require "norn/mode"
-require "stringio"
 
-RSpec.describe "PromptUserPlugin and prompt_user tool" do
+RSpec.describe "PromptUserPlugin and prompt_user tool", norn_plugins: :prompt_user do
   before do
     Norn::ToolRegistry.clear!
-    # Load and auto-register the PromptUserPlugin
-    load File.expand_path("plugins/prompt_user/plugin.rb", Dir.pwd)
-    # Trigger tool registration
     Norn::PluginManager.trigger(:on_tool_register, Norn::ToolRegistry)
   end
 
@@ -25,18 +21,15 @@ RSpec.describe "PromptUserPlugin and prompt_user tool" do
   end
 
   describe "In-flight Execution with Context" do
-    let(:output) { StringIO.new }
-
     context "when running in an Interactive Mode" do
       it "handles confirm prompts successfully returning 'yes'" do
-        # Simulate standard input typing 'y'
-        input = StringIO.new("y\n")
+        io = norn_io("y")
         interactive_mode = Class.new(Norn::Mode) do
           def start(prompt = nil); end
           def interactive?; true; end
           def allowed_capabilities; [:sys_read]; end
           def instructions; "test"; end
-        end.new(input: input, output: output)
+        end.new(input: io.input, output: io.output)
 
         result_str = tool.call({ type: "confirm", question: "Apply changes?" }, interactive_mode)
         expect(result_str).to eq("yes")
@@ -44,30 +37,29 @@ RSpec.describe "PromptUserPlugin and prompt_user tool" do
 
       it "handles select single-option prompts successfully" do
         # Simulate selecting the first option (pressing enter)
-        input = StringIO.new("\n")
+        io = norn_io("")
         interactive_mode = Class.new(Norn::Mode) do
           def start(prompt = nil); end
           def interactive?; true; end
           def allowed_capabilities; [:sys_read]; end
           def instructions; "test"; end
-        end.new(input: input, output: output)
+        end.new(input: io.input, output: io.output)
 
         result_str = tool.call({ type: "select", question: "Choose one:", choices: ["option_a", "option_b"] }, interactive_mode)
         expect(result_str).to eq("option_a")
-        expect(output.string).to include("Use arrow keys, Enter to select")
+        expect(io).to have_produced("Use arrow keys, Enter to select")
       end
 
       it "handles select with allow_custom: true, dynamically prompting for custom text when 'Custom' option is chosen" do
         # Simulate moving down twice using "\e[B" key sequences, pressing Enter, then typing custom text
-        input = StringIO.new("\e[B\e[B\nMy custom value\n")
-        def input.wait_readable(timeout = nil); true; end
+        io = norn_io("\e[B\e[B\nMy custom value\n")
         
         interactive_mode = Class.new(Norn::Mode) do
           def start(prompt = nil); end
           def interactive?; true; end
           def allowed_capabilities; [:sys_read]; end
           def instructions; "test"; end
-        end.new(input: input, output: output)
+        end.new(input: io.input, output: io.output)
 
         result_str = tool.call({
           type: "select",
@@ -78,35 +70,34 @@ RSpec.describe "PromptUserPlugin and prompt_user tool" do
         }, interactive_mode)
 
         expect(result_str).to eq("My custom value")
-        expect(output.string).to include("Type custom value:")
-        expect(output.string).to include("Use arrow keys, Enter to select")
+        expect(io).to have_produced("Type custom value:")
+        expect(io).to have_produced("Use arrow keys, Enter to select")
       end
 
       it "handles multi_select checklist prompts successfully and renders help text guidelines" do
         # Simulate space bar toggling option, then enter submitting
-        input = StringIO.new(" \n")
-        def input.wait_readable(timeout = nil); true; end
+        io = norn_io(" \n")
         
         interactive_mode = Class.new(Norn::Mode) do
           def start(prompt = nil); end
           def interactive?; true; end
           def allowed_capabilities; [:sys_read]; end
           def instructions; "test"; end
-        end.new(input: input, output: output)
+        end.new(input: io.input, output: io.output)
 
         result_str = tool.call({ type: "multi_select", question: "Languages:", choices: ["Ruby", "Go"] }, interactive_mode)
         expect(result_str).to eq("Ruby")
-        expect(output.string).to include("Press Space to toggle options, Enter to submit")
+        expect(io).to have_produced("Press Space to toggle options, Enter to submit")
       end
 
       it "handles input text prompts successfully" do
-        input = StringIO.new("Custom Answer\n")
+        io = norn_io("Custom Answer")
         interactive_mode = Class.new(Norn::Mode) do
           def start(prompt = nil); end
           def interactive?; true; end
           def allowed_capabilities; [:sys_read]; end
           def instructions; "test"; end
-        end.new(input: input, output: output)
+        end.new(input: io.input, output: io.output)
 
         result_str = tool.call({ type: "input", question: "Enter text:" }, interactive_mode)
         expect(result_str).to eq("Custom Answer")
@@ -114,13 +105,14 @@ RSpec.describe "PromptUserPlugin and prompt_user tool" do
     end
 
     context "when running in a Non-Interactive Mode" do
+      let(:io) { norn_io }
       let(:non_interactive_mode) do
         Class.new(Norn::Mode) do
           def start(prompt = nil); end
           def interactive?; false; end
           def allowed_capabilities; [:sys_read]; end
           def instructions; "test"; end
-        end.new(output: output)
+        end.new(output: io.output)
       end
 
       it "falls back to default_value safely if provided" do

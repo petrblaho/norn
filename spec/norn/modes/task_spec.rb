@@ -6,18 +6,10 @@ require "dry/monads"
 RSpec.describe Norn::Modes::Task do
   include Dry::Monads[:result]
 
-  let(:output) { StringIO.new }
-  let(:mock_client) { double("LLMClient", model: "mock-model") }
-
-  before do
-    allow(Norn::Container).to receive(:[]).and_call_original
-    allow(Norn::Container).to receive(:[]).with("llm.mock_provider").and_return(mock_client)
-    Norn.config.llm_provider = "mock_provider"
-  end
-
   describe "#start" do
     it "returns failure if no prompt is given" do
-      task_mode = described_class.new(output: output)
+      io = norn_io
+      task_mode = described_class.new(output: io.output)
       expect(task_mode.start(nil)).to be_failure
       expect(task_mode.start("   ")).to be_failure
     end
@@ -33,29 +25,23 @@ RSpec.describe Norn::Modes::Task do
       end
       Norn::ToolRegistry.register(mock_tool)
 
-      # 1st LLM call: returns a tool call wrapped in Success
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array),
-        tools: [mock_tool]
-      ).and_return(Success({
-        type: :tool_call,
-        calls: [
-          {
-            id: "call_123",
-            name: "test_tool",
-            arguments: { val: "my-val" }
-          }
-        ]
-      }))
-
-      # 2nd LLM call: returns text response after receiving tool result wrapped in Success
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array),
-        tools: [mock_tool]
-      ).and_return(Success({
-        type: :text,
-        content: "I have successfully run the tool and completed the task!"
-      }))
+      # Stub sequential LLM calls
+      stub_llm_responses([
+        {
+          type: :tool_call,
+          calls: [
+            {
+              id: "call_123",
+              name: "test_tool",
+              arguments: { val: "my-val" }
+            }
+          ]
+        },
+        {
+          type: :text,
+          content: "I have successfully run the tool and completed the task!"
+        }
+      ], provider: "mock_provider")
 
       # Mock rendering hook
       rendered_called = false
@@ -65,16 +51,18 @@ RSpec.describe Norn::Modes::Task do
         payload
       end
 
-      task_mode = described_class.new(output: output)
+      io = norn_io
+      task_mode = described_class.new(output: io.output)
       result = task_mode.start("Use the test tool with my-val")
 
       expect(result).to be_success
 
-      output_str = output.string
-      expect(output_str).to include("Norn Autonomous Task Agent initialized.")
-      expect(output_str).to include("🔧 Running test_tool with arguments:")
-      expect(output_str).to include("my-val")
-      expect(output_str).to include("RENDERED: I have successfully run the tool and completed the task!")
+      expect(io).to have_produced_in_order(
+        "Norn Autonomous Task Agent initialized.",
+        "Running test_tool with arguments:",
+        "my-val",
+        "RENDERED: I have successfully run the tool and completed the task!"
+      )
       expect(tool_executed).to be(true)
       expect(rendered_called).to be(true)
 
@@ -104,33 +92,30 @@ RSpec.describe Norn::Modes::Task do
     it "handles missing or failing tools gracefully" do
       Norn::ToolRegistry.clear!
 
-      # LLM calls a non-existent tool wrapped in Success
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array)
-      ).and_return(Success({
-        type: :tool_call,
-        calls: [
-          {
-            id: "call_999",
-            name: "missing_tool",
-            arguments: {}
-          }
-        ]
-      }))
+      # Stub sequential LLM calls
+      stub_llm_responses([
+        {
+          type: :tool_call,
+          calls: [
+            {
+              id: "call_999",
+              name: "missing_tool",
+              arguments: {}
+            }
+          ]
+        },
+        {
+          type: :text,
+          content: "Tool missing error handled."
+        }
+      ], provider: "mock_provider")
 
-      # LLM responds after the failure wrapped in Success
-      expect(mock_client).to receive(:call).with(
-        an_instance_of(Array)
-      ).and_return(Success({
-        type: :text,
-        content: "Tool missing error handled."
-      }))
-
-      task_mode = described_class.new(output: output)
+      io = norn_io
+      task_mode = described_class.new(output: io.output)
       result = task_mode.start("Call missing tool")
 
       expect(result).to be_success
-      expect(output.string).to include("🔧 Running missing_tool")
+      expect(io).to have_produced("Running missing_tool")
       expect(task_mode.messages).to include(
         hash_including(role: "tool", content: "Error: Tool 'missing_tool' not found in registry.")
       )

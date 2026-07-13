@@ -1,29 +1,9 @@
 require "spec_helper"
-require_relative "../../../plugins/tty_markdown/plugin"
 require "tty-markdown"
 require "dry/monads"
 
-RSpec.describe "TTY Markdown Plugin" do
+RSpec.describe "TTY Markdown Plugin", norn_plugins: :tty_markdown do
   include Dry::Monads[:result]
-
-  before do
-    @orig_plugins = Norn::Plugin.registered_plugins.dup
-    Norn::PluginManager.reset!
-    Norn::Plugin.clear!
-    Norn::PluginManager.register_core_hooks!
-    # Load the plugin
-    load File.expand_path("plugins/tty_markdown/plugin.rb", Dir.pwd)
-    # Ensure TTYMarkdownPlugin is in registered_plugins
-    unless Norn::Plugin.registered_plugins.include?(TTYMarkdownPlugin)
-      Norn::Plugin.registered_plugins << TTYMarkdownPlugin
-    end
-  end
-
-  after do
-    Norn::PluginManager.reset!
-    Norn::Plugin.instance_variable_set(:@registered_plugins, @orig_plugins)
-    Norn::PluginManager.register_core_hooks!
-  end
 
   it "renders markdown into ANSI-colored terminal text on the :on_render_response middleware hook" do
     raw_markdown = "# Heading\n- item 1\n- item 2"

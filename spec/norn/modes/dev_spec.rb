@@ -1,15 +1,12 @@
 require "spec_helper"
 require "norn/modes/dev"
-require "stringio"
 require "dry/monads"
 
 RSpec.describe Norn::Modes::Dev do
   include Dry::Monads[:result]
 
-  let(:input) { StringIO.new("exit\n") }
-  let(:output) { StringIO.new }
-
-  let(:dev_mode) { described_class.new(input: input, output: output) }
+  let(:io) { norn_io("exit") }
+  let(:dev_mode) { described_class.new(input: io.input, output: io.output) }
 
   it "is successfully registered as 'dev' in the ModeRegistry" do
     expect(Norn::ModeRegistry.resolve("dev")).to eq(described_class)
@@ -30,8 +27,10 @@ RSpec.describe Norn::Modes::Dev do
       result = dev_mode.start
 
       expect(result).to be_success
-      expect(output.string).to include("Norn Live Developer Pairing Mode initialized")
-      expect(output.string).to include("Goodbye!")
+      expect(io).to have_produced_in_order(
+        "Norn Live Developer Pairing Mode initialized",
+        "Goodbye!"
+      )
     end
   end
 end
