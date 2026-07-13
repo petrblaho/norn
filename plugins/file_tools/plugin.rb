@@ -115,7 +115,7 @@ class FileToolsPlugin < Norn::Plugin
       },
       required_capabilities: [:sys_read]
     ) { |args|
-      root = File.expand_path(Norn::Container.config.root)
+      root = File.expand_path(Norn.workspace_root)
       # Ensure the glob search runs safely inside root
       matches = Dir.glob(File.join(root, args[:pattern])).map do |abs_path|
         Pathname.new(abs_path).relative_path_from(Pathname.new(root)).to_s
@@ -137,7 +137,7 @@ class FileToolsPlugin < Norn::Plugin
       },
       required_capabilities: [:sys_read]
     ) { |args|
-      root = File.expand_path(Norn::Container.config.root)
+      root = File.expand_path(Norn.workspace_root)
       pattern = Regexp.new(args[:pattern])
       glob_pattern = args[:include] || "**/*"
 

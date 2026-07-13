@@ -89,7 +89,7 @@ class GitPlugin < Norn::Plugin
       cmd = ["git", subcmd] + extra_args
 
       begin
-        root = File.expand_path(Norn::Container.config.root)
+        root = File.expand_path(Norn.workspace_root)
         stdout, stderr, status = Open3.capture3(*cmd, chdir: root)
 
         if status.success?
