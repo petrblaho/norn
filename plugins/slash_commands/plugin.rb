@@ -26,7 +26,20 @@ module Norn
         end
 
         def resolve(trigger)
-          @commands[trigger.to_s.downcase.strip]
+          normalized = trigger.to_s.strip.downcase
+
+          # 1. Exact match first (highest precedence, handles non-slash commands or exact matches)
+          return @commands[normalized] if @commands.key?(normalized)
+
+          # 2. Extract first word
+          first_word = normalized.split(/\s+/).first.to_s
+
+          # 3. Only allow prefix/first-word match if the registered trigger starts with "/"
+          if first_word.start_with?("/") && @commands.key?(first_word)
+            return @commands[first_word]
+          end
+
+          nil
         end
 
         def commands
