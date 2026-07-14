@@ -22,12 +22,12 @@ module Norn
         def on_tool_register(registry)
           registry.register(Norn::Tool.new(
             "get_session_stats",
-            "Retrieve active session metrics, including prompt/completion token usage and tool call history.",
+            "Retrieve active session metrics, including token usage, tool call history, and session-level command approvals.",
             {
               type: "object",
               properties: {}
             },
-            system_instructions: "Use this tool to inspect token usage, tool counts, and conversational stats of the current active session."
+            system_instructions: "Use this tool to inspect token usage, tool counts, active session-level command approvals, and conversational stats of the current active session."
           ) do |_args, _context|
             begin
               Norn["session"].to_h.to_json

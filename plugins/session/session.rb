@@ -84,7 +84,8 @@ module Norn
           provider_usage: {},
           tool_calls: [],
           history: [],
-          metadata: {}
+          metadata: {},
+          session_approvals: []
         }
       end
     end

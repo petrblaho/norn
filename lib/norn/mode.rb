@@ -127,6 +127,19 @@ module Norn
         return Success("Error: Tool '#{tool_name}' not found in registry.")
       end
 
+      # Pre-flight Session Approval Evaluation
+      session = nil
+      begin
+        session = Norn["session"]
+      rescue => e
+        # Ignore container errors if session not registered
+      end
+
+      if session && tool.session_approved?(session, args)
+        @output.puts "⚡ Session approved: #{tool.name}"
+        return proceed_to_execution(tool, args)
+      end
+
       # Load our newly encapsulated UI Gatekeeper service
       require "norn/ui/gatekeeper"
       gatekeeper = Norn::UI::Gatekeeper.new(input: @input, output: @output)
@@ -159,7 +172,12 @@ module Norn
       # 2. In-Flight Interactive Danger Guards
       if tool.dangerous?(args) && interactive?
         authorized = gatekeeper.authorize_danger(tool, args)
-        if authorized
+        if authorized == :session
+          @output.puts "⚡ Action authorized and approved for the rest of this session."
+          if session
+            session.append(:session_approvals, tool.session_approval_pattern(args))
+          end
+        elsif authorized
           @output.puts "🔓 Action authorized."
         else
           @output.puts "🚫 Action aborted by user."
@@ -167,19 +185,23 @@ module Norn
         end
       end
 
-      # 3. Proceed to safe execution, passing self as context
-      begin
-        result_str = tool.call(args, self).to_s
-        Norn::PluginManager.trigger(:after_tool_call, tool_name, args, result_str, nil)
-        Success(result_str)
-      rescue => e
-        error_msg = e.message
-        Norn::PluginManager.trigger(:after_tool_call, tool_name, args, nil, error_msg)
-        Success("Error executing tool '#{tool_name}': #{error_msg}")
-      end
+      # 3. Proceed to safe execution
+      proceed_to_execution(tool, args)
     end
 
     private
+
+    def proceed_to_execution(tool, args)
+      begin
+        result_str = tool.call(args, self).to_s
+        Norn::PluginManager.trigger(:after_tool_call, tool.name, args, result_str, nil)
+        Success(result_str)
+      rescue => e
+        error_msg = e.message
+        Norn::PluginManager.trigger(:after_tool_call, tool.name, args, nil, error_msg)
+        Success("Error executing tool '#{tool.name}': #{error_msg}")
+      end
+    end
 
     def handle_gatekeeper_fallback(tool, args, gatekeeper)
       choice = gatekeeper.show_fallback_menu(tool.name, args)

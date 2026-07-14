@@ -58,6 +58,16 @@ module Norn
           "🔓 Yes, proceed" => true,
           "🚫 No, abort/review" => false
         }
+        
+        # Only offer session-level approvals if the tool is not statically dangerous
+        # OR if it explicitly allows session-level danger bypass.
+        is_statically_dangerous = tool.respond_to?(:dangerous) && tool.dangerous
+        allows_session_danger = tool.respond_to?(:allow_session_danger?) && tool.allow_session_danger?
+        
+        if !is_statically_dangerous || allows_session_danger
+          choices["⚡ #{tool.session_approval_label(args)}"] = :session
+        end
+        
         @prompt.select("Execute this action?", choices)
       end
 

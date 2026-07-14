@@ -81,7 +81,7 @@ RSpec.describe Norn::Plugins::SlashCommands::SlashCommandsPlugin, norn_plugins: 
     end
 
     it "intercepts /session to return session statistics when session is active" do
-      mock_session = double("Session", stats: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150, tool_calls: 5 })
+      mock_session = double("Session", stats: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150, tool_calls: 5, session_approvals: [] })
       allow(Norn).to receive(:[]).with("session").and_return(mock_session)
 
       payload = { text: "/session", action: :continue, mode: nil }
@@ -92,6 +92,31 @@ RSpec.describe Norn::Plugins::SlashCommands::SlashCommandsPlugin, norn_plugins: 
       expect(result.value![:output]).to include("Current Session Stats")
       expect(result.value![:output]).to include("Prompt Tokens:     100")
       expect(result.value![:output]).to include("Completion Tokens: 50")
+      expect(result.value![:output]).to include("Session Approvals: None")
+    end
+
+    it "lists active session approvals in /session output" do
+      mock_session = double("Session", stats: {
+        prompt_tokens: 10,
+        completion_tokens: 5,
+        total_tokens: 15,
+        tool_calls: 1,
+        session_approvals: [
+          { tool_name: "git", subcommand: "status" },
+          { tool_name: "file_write" }
+        ]
+      })
+      allow(Norn).to receive(:[]).with("session").and_return(mock_session)
+
+      payload = { text: "/session", action: :continue, mode: nil }
+      result = plugin.on_user_input(payload)
+
+      expect(result).to be_success
+      expect(result.value![:action]).to eq(:skip)
+      output = result.value![:output]
+      expect(output).to include("Session Approvals:")
+      expect(output).to include("- git (subcommand: status)")
+      expect(output).to include("- file_write")
     end
   end
 
