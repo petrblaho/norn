@@ -57,6 +57,15 @@ module Norn
         }
         @prompt.select("Execute this action?", choices)
       end
+
+      def show_fallback_menu(tool_name, args)
+        choices = {
+          "Skip this execution (allow agent to continue without this result)" => :skip,
+          "Edit command arguments inline (freeform feedback)" => :edit,
+          "Abort the active agent session completely" => :abort
+        }
+        @prompt.select("\nOperation Aborted. What would you like to do next?", choices)
+      end
     end
   end
 end

@@ -45,4 +45,12 @@ RSpec.describe Norn::UI::Gatekeeper do
       expect(output.string).to include("potentially dangerous command")
     end
   end
+
+  describe "#show_fallback_menu" do
+    it "presents choices and returns the corresponding symbol" do
+      expect_any_instance_of(TTY::Prompt).to receive(:select).and_return(:edit)
+      result = subject.show_fallback_menu("file_write", { path: "test.txt" })
+      expect(result).to eq(:edit)
+    end
+  end
 end
