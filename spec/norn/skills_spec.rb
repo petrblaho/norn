@@ -44,6 +44,15 @@ RSpec.describe "Skills System" do
       MARKDOWN
     end
 
+    let(:missing_name_md) do
+      <<~MARKDOWN
+        ---
+        description: A skill missing an explicit name.
+        ---
+        Instructions body.
+      MARKDOWN
+    end
+
     it "parses a valid skill markdown string successfully" do
       skill = Norn::Skill.parse_content(valid_md)
       expect(skill).not_to be_nil
@@ -62,6 +71,13 @@ RSpec.describe "Skills System" do
       expect(skill.description).to eq("This description: has an unquoted colon: which normally breaks YAML.")
       expect(skill.invocable).to be(false)
       expect(skill.instructions).to eq("Body content.")
+    end
+
+    it "falls back to parent directory name if name is missing but filepath is provided" do
+      skill = Norn::Skill.parse_content(missing_name_md, "/path/to/my-fallback-skill/SKILL.md")
+      expect(skill).not_to be_nil
+      expect(skill.name).to eq("my-fallback-skill")
+      expect(skill.description).to eq("A skill missing an explicit name.")
     end
 
     it "triggers matches? properly and case-insensitively" do
@@ -251,6 +267,36 @@ RSpec.describe "Skills System" do
       
       expect(result.success?).to be(true)
       expect(Norn::SkillRegistry.active_skills).to contain_exactly(skill)
+    end
+
+    it "renders `/skills` list without crashing even if a skill description contains a percent sign" do
+      percent_skill = Norn::Skill.new(
+        name: "percent-skill",
+        description: "Skill with 100% discount",
+        triggers: ["percent_trigger"],
+        invocable: false,
+        argument_hint: nil,
+        instructions: "Percent Instructions",
+        location: "/some/path/SKILL.md"
+      )
+      Norn::SkillRegistry.register(percent_skill)
+
+      mock_registry = double("Registry")
+      handler_block = nil
+      expect(mock_registry).to receive(:register).with("/skills", any_args) do |trigger, desc, &block|
+        handler_block = block
+      end
+      allow(mock_registry).to receive(:register).with(start_with("/"), any_args)
+
+      plugin = Norn::Plugins::Skills::SkillsPlugin.new
+      plugin.on_slash_commands_register(mock_registry)
+
+      expect(handler_block).not_to be_nil
+      payload = { text: "/skills list" }
+      res = handler_block.call(payload)
+      expect(res).to be_success
+      expect(res.value![:output]).to include("percent-skill")
+      expect(res.value![:output]).to include("100% discount")
     end
   end
 end

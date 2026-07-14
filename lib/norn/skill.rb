@@ -83,12 +83,16 @@ module Norn
 
         # Validation
         name = normalized_fm[:name]&.to_s&.strip
-        description = normalized_fm[:description]&.to_s&.strip
+        if (name.nil? || name.empty?) && filepath
+          name = File.basename(File.dirname(filepath))
+        end
 
         if name.nil? || name.empty?
           warn "Norn Skill Parser Warning: Skill is missing a 'name' field."
           return nil
         end
+
+        description = normalized_fm[:description]&.to_s&.strip
 
         if description.nil? || description.empty?
           warn "Norn Skill Parser Warning: Skill '#{name}' is missing a 'description' field."

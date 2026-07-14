@@ -25,7 +25,7 @@ module Norn
         scan_paths << File.join(Norn.workspace_root, ".norn", "skills")
         scan_paths << File.join(Norn.workspace_root, ".agents", "skills")
 
-        scan_paths.each do |base_dir|
+        scan_paths.uniq.each do |base_dir|
           next unless Dir.exist?(base_dir)
 
           # Scan for subdirectories containing SKILL.md

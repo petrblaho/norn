@@ -132,7 +132,8 @@ module Norn
                 skills.each do |skill|
                   status = active_names.include?(skill.name) ? "\e[1;32m[ACTIVE]\e[0m" : "\e[2;37m[INACTIVE]\e[0m"
                   invocable = skill.invocable ? " \e[1;33m[INVOCABLE]\e[0m" : ""
-                  output << "  #{status} \e[1;32m%-15s\e[0m - #{skill.description}#{invocable}\n" % skill.name
+                  name_part = "\e[1;32m%-15s\e[0m" % skill.name
+                  output << "  #{status} #{name_part} - #{skill.description}#{invocable}\n"
                 end
               end
               Dry::Monads::Success(payload.merge(action: :skip, output: output))
