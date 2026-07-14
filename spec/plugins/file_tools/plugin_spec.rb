@@ -52,6 +52,37 @@ RSpec.describe "File Tools Plugin", norn_plugins: :file_tools do
         read_tool.call(path: sibling_path)
       }.to raise_error(SecurityError, /Path traversal/)
     end
+
+    it "allows reading a file inside a registered skill's base directory even if outside root" do
+      require "tmpdir"
+      temp_skill_dir = Dir.mktmpdir
+      temp_skill_file = File.join(temp_skill_dir, "SKILL.md")
+      resource_file = File.join(temp_skill_dir, "references", "test.txt")
+
+      begin
+        FileUtils.mkdir_p(File.dirname(resource_file))
+        File.write(temp_skill_file, <<~YAML)
+          ---
+          name: test-skill
+          description: A temporary test skill
+          ---
+          Some instructions
+        YAML
+        File.write(resource_file, "hello from resource")
+
+        skill = Norn::Skill.parse_file(temp_skill_file)
+        Norn::SkillRegistry.register(skill)
+
+        read_tool = Norn::ToolRegistry.resolve("file_read")
+        # Compute relative path from workspace root to the external resource file
+        rel_path = Pathname.new(resource_file).relative_path_from(Pathname.new(Norn.workspace_root)).to_s
+        
+        expect(read_tool.call(path: rel_path)).to eq("1: hello from resource")
+      ensure
+        Norn::SkillRegistry.clear!
+        FileUtils.rm_rf(temp_skill_dir)
+      end
+    end
   end
 
   describe "file_edit" do
