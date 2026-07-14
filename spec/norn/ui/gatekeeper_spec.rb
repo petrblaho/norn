@@ -24,7 +24,7 @@ RSpec.describe Norn::UI::Gatekeeper do
   end
 
   describe "#authorize_danger" do
-    let(:tool) { double("Norn::Tool", name: "file_write", dangerous?: true) }
+    let(:tool) { double("Norn::Tool", name: "file_write", dangerous?: true, session_approval_label: "Approve 'file_write' for the rest of this session") }
 
     it "renders file diff and returns true when user selects Yes" do
       allow(File).to receive(:exist?).and_return(true)
@@ -37,12 +37,54 @@ RSpec.describe Norn::UI::Gatekeeper do
     end
 
     it "handles generic dangerous commands and returns false when user selects No" do
-      generic_tool = double("Norn::Tool", name: "bash_exec", dangerous?: true)
+      generic_tool = double("Norn::Tool", name: "bash_exec", dangerous?: true, session_approval_label: "Approve 'bash_exec' for the rest of this session")
       expect_any_instance_of(TTY::Prompt).to receive(:select).and_return(false)
 
       result = subject.authorize_danger(generic_tool, { command: "rm -rf /" })
       expect(result).to be false
       expect(output.string).to include("potentially dangerous command")
+    end
+
+    it "includes the tool-defined session approval option in choices" do
+      tool_mock = double("Tool", name: "write_secret", session_approval_label: "Approve 'write_secret' for the rest of this session")
+      prompt = double("Prompt")
+      allow(TTY::Prompt).to receive(:new).and_return(prompt)
+      
+      expect(prompt).to receive(:select).with(
+        "Execute this action?",
+        hash_including("⚡ Approve 'write_secret' for the rest of this session" => :session)
+      ).and_return(:session)
+
+      result = subject.authorize_danger(tool_mock, {})
+      expect(result).to eq(:session)
+    end
+
+    it "does NOT include the session approval option if the tool is statically dangerous and does not allow session danger" do
+      tool_mock = double("Tool", name: "write_secret", dangerous: true, dangerous?: true, allow_session_danger?: false, session_approval_label: "Approve 'write_secret' for the rest of this session")
+      prompt = double("Prompt")
+      allow(TTY::Prompt).to receive(:new).and_return(prompt)
+      
+      expect(prompt).to receive(:select).with(
+        "Execute this action?",
+        hash_not_including("⚡ Approve 'write_secret' for the rest of this session" => :session)
+      ).and_return(true)
+
+      result = subject.authorize_danger(tool_mock, {})
+      expect(result).to be true
+    end
+
+    it "includes the session approval option if the tool is statically dangerous but allows session danger" do
+      tool_mock = double("Tool", name: "write_secret", dangerous: true, dangerous?: true, allow_session_danger?: true, session_approval_label: "Approve 'write_secret' for the rest of this session")
+      prompt = double("Prompt")
+      allow(TTY::Prompt).to receive(:new).and_return(prompt)
+      
+      expect(prompt).to receive(:select).with(
+        "Execute this action?",
+        hash_including("⚡ Approve 'write_secret' for the rest of this session" => :session)
+      ).and_return(:session)
+
+      result = subject.authorize_danger(tool_mock, {})
+      expect(result).to eq(:session)
     end
   end
 

@@ -13,6 +13,7 @@ RSpec.describe Norn::Session do
       expect(session.get(:tool_calls)).to eq([])
       expect(session.get(:history)).to eq([])
       expect(session.get(:metadata)).to eq({})
+      expect(session.get(:session_approvals)).to eq([])
     end
   end
 

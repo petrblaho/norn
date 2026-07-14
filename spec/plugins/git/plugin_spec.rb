@@ -61,6 +61,11 @@ RSpec.describe GitPlugin, norn_plugins: :git do
     it "defaults to sys_execute for unknown commands" do
       expect(tool.capabilities_for(subcommand: "unrecognized")).to contain_exactly(:sys_execute)
     end
+
+    it "returns git subcommand session approval label" do
+      expect(tool.session_approval_label(subcommand: "commit")).to eq("Approve 'git commit' for the rest of this session")
+      expect(tool.session_approval_label({})).to eq("Approve 'git' for the rest of this session")
+    end
   end
 
   describe "Parametric Danger Guard Evaluation" do
@@ -94,6 +99,12 @@ RSpec.describe GitPlugin, norn_plugins: :git do
 
     it "classifies hard reset as dangerous" do
       expect(tool.dangerous?(subcommand: "reset", arguments: ["--hard", "HEAD~1"])).to be true
+    end
+
+    describe "#allow_session_danger?" do
+      it "returns false so dangerous git subcommands still prompt" do
+        expect(tool.allow_session_danger?).to be false
+      end
     end
   end
 

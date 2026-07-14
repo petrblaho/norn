@@ -29,6 +29,27 @@ module Norn
       @dangerous
     end
 
+    def session_approval_label(args = {})
+      "Approve '#{name}' for the rest of this session"
+    end
+
+    def session_approval_pattern(args = {})
+      { tool_name: name }
+    end
+
+    def session_approved?(session, args)
+      return false if session.nil?
+      
+      approvals = session.get(:session_approvals) || []
+      has_approval = approvals.any? { |app| app[:tool_name] == name }
+      
+      has_approval && (!dangerous?(args) || allow_session_danger?)
+    end
+
+    def allow_session_danger?
+      @dangerous
+    end
+
     def call(args, context = nil)
       # Ensure arguments are symbolized for easy access
       symbolized_args = symbolize_keys(args)

@@ -159,6 +159,19 @@ module Norn
                           "  Completion Tokens: #{stats[:completion_tokens]}\n" \
                           "  Total Tokens:      #{stats[:total_tokens]}\n" \
                           "  Tool Calls:        #{tool_calls_count}\n"
+
+                approvals = stats[:session_approvals] || []
+                if approvals.any?
+                  message << "  Session Approvals:\n"
+                  approvals.each do |app|
+                    tool_name = app[:tool_name] || app["tool_name"]
+                    details = app.reject { |k, _v| k.to_s == "tool_name" }.map { |k, v| "#{k}: #{v}" }.join(", ")
+                    detail_str = details.empty? ? "" : " (#{details})"
+                    message << "    - #{tool_name}#{detail_str}\n"
+                  end
+                else
+                  message << "  Session Approvals: None\n"
+                end
               else
                 message = "\e[1;31mSession tracking is not active.\e[0m"
               end

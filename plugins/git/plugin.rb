@@ -36,6 +36,36 @@ module Norn
             false
           end
         end
+
+        def session_approval_label(args = {})
+          subcommand = args[:subcommand]
+          if subcommand
+            "Approve 'git #{subcommand}' for the rest of this session"
+          else
+            "Approve 'git' for the rest of this session"
+          end
+        end
+
+        def session_approval_pattern(args = {})
+          pattern = { tool_name: "git" }
+          pattern[:subcommand] = args[:subcommand].to_s.downcase if args[:subcommand]
+          pattern
+        end
+
+        def session_approved?(session, args)
+          return false if session.nil?
+
+          subcommand = args[:subcommand].to_s.downcase
+          approvals = session.get(:session_approvals) || []
+
+          approvals.any? do |app|
+            app[:tool_name] == "git" && app[:subcommand] == subcommand
+          end
+        end
+
+        def allow_session_danger?
+          false
+        end
       end
     end
   end
