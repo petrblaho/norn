@@ -127,6 +127,10 @@ module Norn
         return Success("Error: Tool '#{tool_name}' not found in registry.")
       end
 
+      # Load our newly encapsulated UI Gatekeeper service
+      require "norn/ui/gatekeeper"
+      gatekeeper = Norn::UI::Gatekeeper.new(input: @input, output: @output)
+
       # 1. Capability Authorization Check
       required_caps = tool.capabilities_for(args)
       missing_caps = required_caps - allowed_capabilities
@@ -134,20 +138,13 @@ module Norn
       unless missing_caps.empty?
         # Handle capability escalation
         if interactive?
-          @output.puts "\n⚠️  Security Escalation: Tool '#{tool_name}' requested unauthorized capabilities: #{missing_caps.join(', ')}"
-          @output.puts "Arguments: #{args.inspect}"
-          @output.print "Do you want to authorize this operation? [y/N]: "
-          
-          response = @input.gets.to_s.strip.downcase
-          if ["y", "yes"].include?(response)
+          authorized = gatekeeper.authorize_capabilities(tool_name, missing_caps, args)
+          if authorized
             @output.puts "🔓 Operation authorized by user."
             allowed_capabilities.concat(missing_caps)
           else
             @output.puts "🚫 Operation blocked by user."
-            return Failure(Norn::FailurePayload.new(
-              Norn::ToolError.new("Authorization denied by user to run tool '#{tool_name}' requiring capabilities: #{missing_caps.join(', ')}."),
-              { tool: tool_name, missing_capabilities: missing_caps }
-            ))
+            return handle_gatekeeper_fallback(tool, args, gatekeeper)
           end
         else
           # Non-interactive block-by-default on capability violations
@@ -161,45 +158,12 @@ module Norn
 
       # 2. In-Flight Interactive Danger Guards
       if tool.dangerous?(args) && interactive?
-        if ["file_write", "file_edit"].include?(tool_name)
-          # Interactive File Diff Previewer
-          begin
-            root = File.expand_path(Norn.workspace_root)
-            abs_path = File.expand_path(args[:path], root)
-            unless abs_path == root || abs_path.start_with?(root + File::SEPARATOR)
-              raise SecurityError, "Path traversal attempt detected"
-            end
-
-            old_content = File.exist?(abs_path) ? File.read(abs_path) : ""
-            new_content = if tool_name == "file_write"
-                            args[:content].to_s
-                          else
-                            old_content.sub(args[:old_string].to_s, args[:new_string].to_s)
-                          end
-
-            @output.puts "\n📝 Proposed changes to \e[1;32m#{args[:path]}\e[0m:"
-            @output.puts Norn::DiffHelper.color_diff(old_content, new_content)
-            @output.print "Apply these changes? [Y/n]: "
-          rescue => e
-            return Failure(Norn::FailurePayload.new(e, { tool: tool_name, args: args }))
-          end
-        else
-          # Generic Command Execution Guard
-          @output.puts "\n⚠️  Warning: Norn wants to execute a potentially dangerous command: '#{tool_name}'"
-          @output.puts "Arguments: #{args.inspect}"
-          @output.print "Execute this command? [Y/n]: "
-        end
-
-        response = @input.gets.to_s.strip.downcase
-        # Empty input defaults to Approval (represented by capitalized Y in prompt [Y/n])
-        if response.empty? || ["y", "yes"].include?(response)
+        authorized = gatekeeper.authorize_danger(tool, args)
+        if authorized
           @output.puts "🔓 Action authorized."
         else
           @output.puts "🚫 Action aborted by user."
-          return Failure(Norn::FailurePayload.new(
-            Norn::ToolError.new("Action aborted by user."),
-            { tool: tool_name, args: args }
-          ))
+          return handle_gatekeeper_fallback(tool, args, gatekeeper)
         end
       end
 
@@ -214,6 +178,54 @@ module Norn
         Success("Error executing tool '#{tool_name}': #{error_msg}")
       end
     end
+
+    private
+
+    def handle_gatekeeper_fallback(tool, args, gatekeeper)
+      choice = gatekeeper.show_fallback_menu(tool.name, args)
+      case choice
+      when :skip
+        Success("Tool execution skipped by user request.")
+      when :edit
+        # Freeform interactive parameter editing
+        loop do
+          prompt_helper = TTY::Prompt.new(input: @input, output: @output)
+          user_feedback = prompt_helper.ask("Describe the changes you want to make: ")
+          if user_feedback.nil? || user_feedback.strip.empty?
+            @output.puts "No feedback provided."
+            next
+          end
+
+          provider = Norn.config.llm_provider
+          client = Norn::Container["llm.#{provider}"]
+
+          refine_result = gatekeeper.refine_arguments(tool, args, user_feedback, client)
+          if refine_result.success?
+            new_args = refine_result.value!
+            @output.puts "🔧 Modified arguments: #{new_args.inspect}"
+            # Recursively call execute_tool to validate edited parameters back through gatekeeper
+            return execute_tool(tool.name, new_args)
+          else
+            @output.puts "❌ Error refining parameters: #{refine_result.failure}"
+            sub_choices = {
+              "Try describing changes again" => :try_again,
+              "Go back to fallback menu" => :back_to_menu
+            }
+            sub_choice = prompt_helper.select("How would you like to proceed?", sub_choices)
+            if sub_choice == :back_to_menu
+              return handle_gatekeeper_fallback(tool, args, gatekeeper)
+            end
+          end
+        end
+      else
+        Failure(Norn::FailurePayload.new(
+          Norn::ToolError.new("Action aborted by user."),
+          { tool: tool.name, args: args }
+        ))
+      end
+    end
+
+    public
 
     # Dynamically compiles the system prompt by aggregating sandbox configs, 
     # mode-level instructions, and LLM directives registered by all authorized tools.
