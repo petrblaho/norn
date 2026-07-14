@@ -166,7 +166,9 @@ module Norn
           begin
             root = File.expand_path(Norn.workspace_root)
             abs_path = File.expand_path(args[:path], root)
-            raise SecurityError, "Path traversal attempt detected" unless abs_path.start_with?(root)
+            unless abs_path == root || abs_path.start_with?(root + File::SEPARATOR)
+              raise SecurityError, "Path traversal attempt detected"
+            end
 
             old_content = File.exist?(abs_path) ? File.read(abs_path) : ""
             new_content = if tool_name == "file_write"

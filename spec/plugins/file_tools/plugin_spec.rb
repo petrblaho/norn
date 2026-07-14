@@ -44,6 +44,14 @@ RSpec.describe "File Tools Plugin", norn_plugins: :file_tools do
         read_tool.call(path: "../../../etc/passwd")
       }.to raise_error(SecurityError, /Path traversal/)
     end
+
+    it "prevents sibling directory traversal when directory name shares a prefix" do
+      read_tool = Norn::ToolRegistry.resolve("file_read")
+      sibling_path = File.join(File.dirname(Norn.workspace_root), "#{File.basename(Norn.workspace_root)}_secret/some_file.txt")
+      expect {
+        read_tool.call(path: sibling_path)
+      }.to raise_error(SecurityError, /Path traversal/)
+    end
   end
 
   describe "file_edit" do
