@@ -61,6 +61,7 @@ RSpec.describe "Capability-Based Security Gatekeeper" do
       end
 
       it "prompts the user, temporarily adds capabilities to session, and executes the tool successfully" do
+        expect_any_instance_of(TTY::Prompt).to receive(:select).and_return(true)
         result = interactive_mode.execute_tool("write_secret", {})
 
         expect(result).to be_success
@@ -85,10 +86,12 @@ RSpec.describe "Capability-Based Security Gatekeeper" do
       end
 
       it "prompts the user, blocks execution, and returns a monadic Failure" do
+        expect_any_instance_of(TTY::Prompt).to receive(:select).with("Do you want to authorize this operation?", any_args).and_return(false)
+        expect_any_instance_of(TTY::Prompt).to receive(:select).with("\nOperation Aborted. What would you like to do next?", any_args).and_return(:abort)
         result = interactive_mode.execute_tool("write_secret", {})
 
         expect(result).to be_failure
-        expect(result.failure.message).to include("Authorization denied by user")
+        expect(result.failure.message).to include("Action aborted by user")
         expect(io).to have_produced("Operation blocked by user.")
       end
     end
