@@ -53,4 +53,34 @@ RSpec.describe Norn::UI::Gatekeeper do
       expect(result).to eq(:edit)
     end
   end
+
+  describe "#refine_arguments" do
+    let(:tool) { double("Norn::Tool", name: "file_write", description: "Write file", parameters: { type: "object" }) }
+    let(:client) { double("LLMClient") }
+
+    it "returns success and symbolizes parsed JSON from LLM response" do
+      # Mock the LLM provider response structure
+      llm_response = double("LLMResponse")
+      allow(llm_response).to receive(:is_a?).with(Hash).and_return(true)
+      allow(llm_response).to receive(:[]).with(:content).and_return("```json\n{\"path\": \"new_path.txt\", \"content\": \"hello\"}\n```")
+      
+      expect(client).to receive(:call).and_return(double("DryMonadResult", failure?: false, value!: llm_response))
+
+      result = subject.refine_arguments(tool, { path: "old.txt" }, "change path to new_path.txt and content to hello", client)
+      expect(result.success?).to be true
+      expect(result.value!).to eq({ path: "new_path.txt", content: "hello" })
+    end
+
+    it "returns failure when LLM response has invalid JSON" do
+      llm_response = double("LLMResponse")
+      allow(llm_response).to receive(:is_a?).with(Hash).and_return(false)
+      allow(llm_response).to receive(:to_s).and_return("invalid non-json string")
+
+      expect(client).to receive(:call).and_return(double("DryMonadResult", failure?: false, value!: llm_response))
+
+      result = subject.refine_arguments(tool, { path: "old.txt" }, "make changes", client)
+      expect(result.failure?).to be true
+      expect(result.failure).to include("Invalid JSON returned by refiner LLM")
+    end
+  end
 end

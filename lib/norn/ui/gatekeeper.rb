@@ -1,8 +1,11 @@
 require "tty-prompt"
+require "dry/monads"
 
 module Norn
   module UI
     class Gatekeeper
+      include Dry::Monads[:result]
+
       def initialize(input: $stdin, output: $stdout)
         @input = input
         @output = output
@@ -65,6 +68,49 @@ module Norn
           "Abort the active agent session completely" => :abort
         }
         @prompt.select("\nOperation Aborted. What would you like to do next?", choices)
+      end
+
+      def refine_arguments(tool, args, user_feedback, client)
+        prompt = <<~PROMPT
+          You are a precise tool parameter refiner. Your task is to update the parameters of a tool based on user feedback.
+
+          Tool Name: #{tool.name}
+          Tool Description: #{tool.description}
+          Tool Schema: #{tool.parameters.to_json}
+
+          Original Parameters: #{args.to_json}
+
+          User Feedback: #{user_feedback}
+
+          Analyze the user's feedback, apply requested changes to the original parameters, and ensure they conform to the tool schema.
+          Output ONLY a raw, valid JSON object containing the updated parameters.
+          Do NOT wrap output in markdown codeblocks. Do NOT add extra explanation or prose.
+        PROMPT
+
+        response_result = client.call([{ role: "user", content: prompt }])
+        return response_result if response_result.failure?
+
+        response = response_result.value!
+        response_text = response.is_a?(Hash) ? response[:content] : response.to_s
+
+        # Robust cleaning of markdown backticks if LLM ignores instruction
+        cleaned_text = response_text.gsub(/```json|```/, "").strip
+
+        begin
+          parsed = JSON.parse(cleaned_text)
+          Success(symbolize_keys(parsed))
+        rescue => e
+          Failure("Invalid JSON returned by refiner LLM: #{e.message}")
+        end
+      end
+
+      private
+
+      def symbolize_keys(hash)
+        return hash unless hash.is_a?(Hash)
+        hash.each_with_object({}) do |(key, value), result|
+          result[key.to_sym] = value.is_a?(Hash) ? symbolize_keys(value) : value
+        end
       end
     end
   end
