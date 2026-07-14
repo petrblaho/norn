@@ -55,6 +55,31 @@ RSpec.describe Norn::Plugins::SlashCommands::SlashCommandsPlugin, norn_plugins: 
       expect(result.value![:output]).to include("Introspective test tool")
     end
 
+    it "intercepts /tools and handles tool descriptions containing percent signs without crashing" do
+      mock_tool = Norn::Tool.new("percent_tool", "Tool with 50% percent sign", {}, required_capabilities: [:sys_read])
+      allow(Norn::ToolRegistry).to receive(:registered_tools).and_return([mock_tool])
+
+      payload = { text: "/tools", action: :continue, mode: nil }
+      result = plugin.on_user_input(payload)
+
+      expect(result).to be_success
+      expect(result.value![:action]).to eq(:skip)
+      expect(result.value![:output]).to include("percent_tool")
+      expect(result.value![:output]).to include("50% percent sign")
+    end
+
+    it "intercepts /help and handles command descriptions containing percent signs without crashing" do
+      plugin.registry.register("/percent_cmd", "Description with 100% percent sign") { |p| Dry::Monads::Success(p) }
+
+      payload = { text: "/help", action: :continue, mode: nil }
+      result = plugin.on_user_input(payload)
+
+      expect(result).to be_success
+      expect(result.value![:action]).to eq(:skip)
+      expect(result.value![:output]).to include("/percent_cmd")
+      expect(result.value![:output]).to include("100% percent sign")
+    end
+
     it "intercepts /session to return session statistics when session is active" do
       mock_session = double("Session", stats: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150, tool_calls: 5 })
       allow(Norn).to receive(:[]).with("session").and_return(mock_session)
@@ -96,6 +121,57 @@ RSpec.describe Norn::Plugins::SlashCommands::SlashCommandsPlugin, norn_plugins: 
 
       expect(help_result.value![:output]).to include("/my_cmd")
       expect(help_result.value![:output]).to include("Custom command description")
+    end
+  end
+
+  describe "slash command prefix/parameter resolution" do
+    it "resolves a command with trailing arguments or options if the trigger starts with /" do
+      # Register a custom slash command
+      plugin.registry.register("/my_test_cmd", "Test description") do |payload|
+        args = payload[:text].to_s.strip.split(/\s+/)
+        Dry::Monads::Success(payload.merge(action: :skip, output: "Command run with: #{args[1..].join(', ')}"))
+      end
+
+      # 1. Exact match works
+      payload1 = { text: "/my_test_cmd", action: :continue, mode: nil }
+      result1 = plugin.on_user_input(payload1)
+      expect(result1).to be_success
+      expect(result1.value![:action]).to eq(:skip)
+      expect(result1.value![:output]).to eq("Command run with: ")
+
+      # 2. Leading match with arguments works
+      payload2 = { text: "/my_test_cmd first_arg second_arg", action: :continue, mode: nil }
+      result2 = plugin.on_user_input(payload2)
+      expect(result2).to be_success
+      expect(result2.value![:action]).to eq(:skip)
+      expect(result2.value![:output]).to eq("Command run with: first_arg, second_arg")
+
+      # 3. Leading match with flags/options works
+      payload3 = { text: "/my_test_cmd --foo=bar -x", action: :continue, mode: nil }
+      result3 = plugin.on_user_input(payload3)
+      expect(result3).to be_success
+      expect(result3.value![:action]).to eq(:skip)
+      expect(result3.value![:output]).to eq("Command run with: --foo=bar, -x")
+    end
+
+    it "does not resolve prefix/parameter matches if the trigger does not start with / to prevent accidental triggers in conversation" do
+      # Register a trigger without leading /
+      plugin.registry.register("help_alias", "Alias of help") do |payload|
+        Dry::Monads::Success(payload.merge(action: :skip, output: "Help alias executed"))
+      end
+
+      # 1. Exact match works
+      payload1 = { text: "help_alias", action: :continue, mode: nil }
+      result1 = plugin.on_user_input(payload1)
+      expect(result1).to be_success
+      expect(result1.value![:action]).to eq(:skip)
+      expect(result1.value![:output]).to eq("Help alias executed")
+
+      # 2. Prefix match does NOT work (passed to LLM/not intercepted)
+      payload2 = { text: "help_alias now please", action: :continue, mode: nil }
+      result2 = plugin.on_user_input(payload2)
+      expect(result2).to be_success
+      expect(result2.value![:action]).to eq(:continue) # Still continue, meaning not intercepted by command
     end
   end
 end
