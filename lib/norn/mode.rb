@@ -63,7 +63,7 @@ module Norn
       # B. Interactive Multi-Turn REPL execution (e.g. Chat or Dev Mode)
       @output.puts "#{banner_name} initialized."
       @output.puts "Using active provider: #{Norn.config.llm_provider}"
-      @output.puts "Type 'exit' or 'quit' to end the session.\n\n"
+      @output.puts "Type 'exit' or 'quit' to end the session. Type '/help' for slash commands.\n\n"
 
       first_turn = true
 

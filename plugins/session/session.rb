@@ -71,6 +71,10 @@ module Norn
       @lock.synchronize { deep_dup(@store) }
     end
 
+    def stats
+      to_h
+    end
+
     def clear!
       @lock.synchronize do
         @store = {
