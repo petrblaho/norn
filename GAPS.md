@@ -89,3 +89,18 @@ This document catalogues the functional gaps, unaligned parts, and refactoring o
   Typically, the official `ruby-openai` gem chat completion endpoints utilize the key `messages` rather than `input` (unless interfacing with specialized API assistants or embeddings). This is a point of potential alignment divergence that should be audited.
 * **Action Required:**
   * Verify client compatibility with standard target API versions and refactor to use the typical `messages: formatted_messages` chat completion payload if necessary.
+
+---
+
+## 7. Agent Skills Support Integration
+
+* **Specification Document:** [Agent Skills Specification](https://agentskills.io/client-implementation/adding-skills-support)
+* **Current Status:** 🔴 **Planned Only**
+* **The Gap:**
+  Norn does not currently have a mechanism to scan, parse, disclose, or activate reusable modular "Agent Skills" from project-level or user-level directories conforming to the official Agent Skills specification.
+* **Action Required:**
+  1. **Discovery & Directory Scan:** Scan at session startup for `.agents/skills/` (and `.claude/skills/` for compatibility) in both project-level (workspace root) and user-level (`Dir.home`) directories.
+  2. **Parse `SKILL.md`:** Parse YAML frontmatter (name, description, etc.) and markdown bodies from discovered `SKILL.md` files. Handle unquoted colon parsing errors leniently.
+  3. **Disclose Available Skills (Tier 1):** Include an `<available_skills>` catalog containing name, description, and location in Norn's compiled system prompt.
+  4. **Skill Activation (Tier 2/3):** Implement a dedicated tool or allow Norn to load full skill instructions and support files/scripts dynamically into the context when needed.
+  5. **Deduplication:** Ensure active skill contents are protected from context compaction and deduplicated during conversational turns.

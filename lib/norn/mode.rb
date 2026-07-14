@@ -244,6 +244,27 @@ module Norn
         end
       end
 
+      # 3. Disclose Available Skills (Catalog)
+      available_xml = Norn::SkillRegistry.generate_catalog_xml
+      if available_xml && !available_xml.empty?
+        catalog_section = <<~TEXT
+          #{available_xml}
+
+          You have access to specialized skills. If a skill is relevant to the user's task, you MUST activate it first to see its complete instructions and resources. To activate a skill, call the 'activate_skill' tool with its name.
+        TEXT
+        system_parts << catalog_section
+      end
+
+      # 4. Inject Active Skills Instructions
+      active_skills = Norn::SkillRegistry.active_skills
+      if active_skills.any?
+        active_parts = ["ACTIVE SKILLS AND INSTRUCTIONS:"]
+        active_skills.each do |skill|
+          active_parts << "=== #{skill.name} ===\n#{skill.instructions}"
+        end
+        system_parts << active_parts.join("\n\n")
+      end
+
       # Gather tools authorized under the active mode's permitted capabilities
       authorized_tools = Norn::ToolRegistry.registered_tools.select do |tool|
         (tool.required_capabilities - allowed_capabilities).empty?
