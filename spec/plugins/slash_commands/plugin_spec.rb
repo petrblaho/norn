@@ -55,6 +55,31 @@ RSpec.describe Norn::Plugins::SlashCommands::SlashCommandsPlugin, norn_plugins: 
       expect(result.value![:output]).to include("Introspective test tool")
     end
 
+    it "intercepts /tools and handles tool descriptions containing percent signs without crashing" do
+      mock_tool = Norn::Tool.new("percent_tool", "Tool with 50% percent sign", {}, required_capabilities: [:sys_read])
+      allow(Norn::ToolRegistry).to receive(:registered_tools).and_return([mock_tool])
+
+      payload = { text: "/tools", action: :continue, mode: nil }
+      result = plugin.on_user_input(payload)
+
+      expect(result).to be_success
+      expect(result.value![:action]).to eq(:skip)
+      expect(result.value![:output]).to include("percent_tool")
+      expect(result.value![:output]).to include("50% percent sign")
+    end
+
+    it "intercepts /help and handles command descriptions containing percent signs without crashing" do
+      plugin.registry.register("/percent_cmd", "Description with 100% percent sign") { |p| Dry::Monads::Success(p) }
+
+      payload = { text: "/help", action: :continue, mode: nil }
+      result = plugin.on_user_input(payload)
+
+      expect(result).to be_success
+      expect(result.value![:action]).to eq(:skip)
+      expect(result.value![:output]).to include("/percent_cmd")
+      expect(result.value![:output]).to include("100% percent sign")
+    end
+
     it "intercepts /session to return session statistics when session is active" do
       mock_session = double("Session", stats: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150, tool_calls: 5 })
       allow(Norn).to receive(:[]).with("session").and_return(mock_session)

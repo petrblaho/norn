@@ -70,7 +70,8 @@ module Norn
             help_message = "\e[1;36mNorn Slash Commands:\e[0m\n"
             @registry.commands.each do |cmd|
               next unless cmd.trigger.start_with?("/")
-              help_message << "  \e[1;32m%-15s\e[0m - #{cmd.description}\n" % cmd.trigger
+              trigger_part = "\e[1;32m%-15s\e[0m" % cmd.trigger
+              help_message << "  #{trigger_part} - #{cmd.description}\n"
             end
             return Dry::Monads::Success(payload.merge(action: :skip, output: help_message))
           end
@@ -140,7 +141,8 @@ module Norn
               tools.each do |tool|
                 caps = tool.required_capabilities.map(&:to_s).join(", ")
                 danger_str = tool.dangerous? ? " \e[1;31m[DANGEROUS]\e[0m" : ""
-                message << "  \e[1;32m%-15s\e[0m - #{tool.description} (Caps: \e[33m#{caps}\e[0m)#{danger_str}\n" % tool.name
+                name_part = "\e[1;32m%-15s\e[0m" % tool.name
+                message << "  #{name_part} - #{tool.description} (Caps: \e[33m#{caps}\e[0m)#{danger_str}\n"
               end
             end
             Dry::Monads::Success(payload.merge(action: :skip, output: message))
