@@ -1,6 +1,7 @@
 require "dotenv"
 Dotenv.load # Load environment variables from .env file if present
 
+require_relative "norn/version"
 require "dry/monads"
 require "dry/monads/do"
 require_relative "norn/secret_scrubber"
