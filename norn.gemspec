@@ -8,8 +8,12 @@ Gem::Specification.new do |spec|
 
   spec.summary       = "A pluggable LLM-driven agent development framework"
   spec.homepage      = "https://github.com/petrblaho/norn"
-  spec.license       = "MIT"
+  spec.license       = "GPL-3.0-only"
   spec.required_ruby_version = ">= 3.0.0"
+
+  spec.metadata["homepage_uri"]    = spec.homepage
+  spec.metadata["source_code_uri"] = "https://github.com/petrblaho/norn"
+  spec.metadata["bug_tracker_uri"] = "https://github.com/petrblaho/norn/issues"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
     `git ls-files -z`.split("\x0").reject do |f|
