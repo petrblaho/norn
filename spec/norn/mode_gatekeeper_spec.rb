@@ -66,4 +66,20 @@ RSpec.describe "Mode Gatekeeper Integration" do
     expect(result.success?).to be true
     expect(result.value!).to eq("Tool execution skipped by user request.")
   end
+
+  it "rescues SecurityError gracefully during tool execution and returns error string" do
+    Norn::ToolRegistry.register(Norn::Tool.new(
+      "harmful_tool", "Harmful action", {},
+      required_capabilities: [:sys_write]
+    ) { raise SecurityError, "Attack blocked!" })
+
+    gatekeeper = double("Norn::UI::Gatekeeper")
+    allow(Norn::UI::Gatekeeper).to receive(:new).and_return(gatekeeper)
+
+    expect(gatekeeper).to receive(:authorize_capabilities).and_return(true)
+
+    result = subject.execute_tool("harmful_tool", {})
+    expect(result.success?).to be true
+    expect(result.value!).to eq("Error executing tool 'harmful_tool': Attack blocked!")
+  end
 end

@@ -196,7 +196,7 @@ module Norn
         result_str = tool.call(args, self).to_s
         Norn::PluginManager.trigger(:after_tool_call, tool.name, args, result_str, nil)
         Success(result_str)
-      rescue => e
+      rescue StandardError, SecurityError => e
         error_msg = e.message
         Norn::PluginManager.trigger(:after_tool_call, tool.name, args, nil, error_msg)
         Success("Error executing tool '#{tool.name}': #{error_msg}")
