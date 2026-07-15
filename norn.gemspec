@@ -16,8 +16,19 @@ Gem::Specification.new do |spec|
   spec.metadata["bug_tracker_uri"] = "https://github.com/petrblaho/norn/issues"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
-    `git ls-files -z`.split("\x0").reject do |f|
-      f.match(%r{\A(?:test|spec|features)/})
+    # Check if we are inside a Git worktree safely without printing anything to stderr
+    is_git_repo = File.exist?(".git") || system("git rev-parse --is-inside-work-tree >#{File::NULL} 2>&1")
+
+    if is_git_repo
+      `git ls-files -z 2>#{File::NULL}`.split("\x0").reject do |f|
+        f.match(%r{\A(?:test|spec|features)/})
+      end
+    else
+      # Fallback files listing for packaging/evaluating in non-git environments
+      files = Dir["{bin,lib,plugins,docs}/**/*"].select { |f| File.file?(f) }
+      files += Dir["*.md"]
+      files += ["Gemfile", "Gemfile.lock", "LICENSE", "norn.gemspec"]
+      files.uniq
     end
   end
   spec.bindir        = "bin"
