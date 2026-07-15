@@ -1,3 +1,3 @@
 module Norn
-  VERSION = "0.0.1.pre.20260715151855"
+  VERSION = "0.0.1.pre.20260715154920"
 end
