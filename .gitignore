@@ -2,3 +2,4 @@ spec/examples.txt
 .norn.yml
 .norn.yaml
 .norn.json
+*.gem
