@@ -65,20 +65,20 @@ NORN_PROVIDER=openai  # or gemini
 ### 3. Start Chat Mode (Read-Only Code Exploration)
 Use Chat mode to safely explore and query your codebase. It has strictly restricted read-only permissions (`[:sys_read, :vcs_read]`):
 ```bash
-./bin/norn chat "Search for all ruby files and explain how Container works"
+bundle exec bin/norn chat "Search for all ruby files and explain how Container works"
 ```
 
 ### 4. Start Dev Mode (Full Interactive Pairing)
 Use Dev Mode for write-enabled pairing. Safe in-flight danger guards and diff prompts will protect your repository:
 ```bash
-./bin/norn dev
+bundle exec bin/norn dev
 ```
 Prompt: *`Write a new ruby file under lib/norn/version.rb containing VERSION = "1.0.0"`* (Watch the diff engine present the proposed file creation before asking for approval!).
 
 ### 5. Start Task Mode (Autonomous Execution)
 Run single-turn autonomous tasks (blocks on capability escalations by default to prevent unintended actions):
 ```bash
-./bin/norn task "Summarize ARCHITECTURE.md"
+bundle exec bin/norn task "Summarize ARCHITECTURE.md"
 ```
 
 ---

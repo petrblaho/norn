@@ -21,13 +21,13 @@ Gem::Specification.new do |spec|
 
     if is_git_repo
       `git ls-files -z 2>#{File::NULL}`.split("\x0").reject do |f|
-        f.match(%r{\A(?:test|spec|features)/})
+        f.match(%r{\A(?:test|spec|features)/}) || %w[Gemfile Gemfile.lock norn.gemspec].include?(f)
       end
     else
       # Fallback files listing for packaging/evaluating in non-git environments
       files = Dir["{bin,lib,plugins,docs}/**/*"].select { |f| File.file?(f) }
       files += Dir["*.md"]
-      files += ["Gemfile", "Gemfile.lock", "LICENSE", "norn.gemspec"]
+      files += ["LICENSE"]
       files.uniq
     end
   end
