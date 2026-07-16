@@ -3,6 +3,19 @@ require "json"
 module Norn
   module Plugins
     module A2A
+      class NullStream
+        def print(*args); end
+        def puts(*args); end
+        def write(*args); end
+      end
+
+      class A2AContext
+        attr_reader :output
+        def initialize
+          @output = NullStream.new
+        end
+      end
+
       class Server
         def initialize(transport:, registry: Norn::ToolRegistry)
           @transport = transport
@@ -101,7 +114,7 @@ module Norn
           @active_execution_id = id if streaming
 
           begin
-            outcome_text = tool.call(arguments, nil)
+            outcome_text = tool.call(arguments, A2AContext.new)
 
             # Compliant A2A Task result payload
             result = {
