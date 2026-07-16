@@ -161,6 +161,11 @@ module Norn
         declare_hook :on_render_response, desc: "ROP middleware. Formats/renders response text in-place."
         declare_hook :after_tool_call, desc: "Fires after a tool execution completes. Informational."
         declare_hook :after_llm_response, desc: "Fires when an LLM response with metadata is received. Informational."
+        
+        # New subprocess hooks
+        declare_hook :before_subprocess_execute, desc: "ROP middleware. Allows inspection/auditing of a shell command."
+        declare_hook :on_subprocess_output, desc: "Notification. Emits a chunk of stdout/stderr read in real-time."
+        declare_hook :after_subprocess_execute, desc: "Notification. Reports outcome and duration of a command."
       end
 
       private
