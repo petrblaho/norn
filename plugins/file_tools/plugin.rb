@@ -6,6 +6,7 @@ class FileToolsPlugin < Norn::Plugin
   end
 
   def on_tool_register(registry)
+    filter = Norn::Plugins::FileTools::IgnoreFilter.new(Norn.workspace_root)
     # 1. file_read
     registry.register(Norn::Tool.new(
       "file_read",
@@ -120,6 +121,7 @@ class FileToolsPlugin < Norn::Plugin
       matches = Dir.glob(File.join(root, args[:pattern])).map do |abs_path|
         Pathname.new(abs_path).relative_path_from(Pathname.new(root)).to_s
       end
+      matches.reject! { |rel_path| filter.ignored?(rel_path) }
       matches.any? ? matches.join("\n") : "No files matched."
     })
 
@@ -143,12 +145,13 @@ class FileToolsPlugin < Norn::Plugin
 
       results = []
       Dir.glob(File.join(root, glob_pattern)).each do |abs_path|
+        relative_path = Pathname.new(abs_path).relative_path_from(Pathname.new(root)).to_s
+        next if filter.ignored?(relative_path)
         next unless File.file?(abs_path)
         # Skip binary or very large files for performance
         next if File.size(abs_path) > 1_000_000
 
         begin
-          relative_path = Pathname.new(abs_path).relative_path_from(Pathname.new(root)).to_s
           File.readlines(abs_path, encoding: "utf-8").each_with_index do |line, idx|
             if line =~ pattern
               results << "#{relative_path}:#{idx + 1}: #{line.strip}"
