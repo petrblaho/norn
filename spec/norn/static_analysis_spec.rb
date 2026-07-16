@@ -29,6 +29,15 @@ RSpec.describe "Centralized Codebase Static-Analysis & Contract Enforcement" do
   end
 
   describe "Norn::Tool Block Arity & Parameter Contracts" do
+    before do
+      Norn::ToolRegistry.clear!
+      Norn::PluginManager.reset!
+      Norn::PluginManager.register_core_hooks!
+      Norn::Plugin.registered_plugins.each do |klass|
+        klass.new.on_tool_register(Norn::ToolRegistry) if klass.instance_methods.include?(:on_tool_register)
+      end
+    end
+
     it "ensures all registered tools in the registry have valid block arity signatures (args or args+context)" do
       # Load all standard tools
       Norn::ToolRegistry.registered_tools.each do |tool|
