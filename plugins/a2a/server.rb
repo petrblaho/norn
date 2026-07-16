@@ -21,6 +21,9 @@ module Norn
           @transport = transport
           @registry = registry
           @active_execution_id = nil
+          @streaming = nil
+          @last_exit_code = 0
+          @last_duration = nil
           
           # Dynamically bind to Norn's real-time subprocess streaming hooks
           setup_hooks!
@@ -51,7 +54,7 @@ module Norn
 
         def setup_hooks!
           Norn::PluginManager.subscribe(:on_subprocess_output) do |payload|
-            if @active_execution_id
+            if @active_execution_id && @streaming
               # Format to official A2A agent.onProgress notification frame
               notification = {
                 jsonrpc: "2.0",
@@ -62,6 +65,13 @@ module Norn
                 }
               }
               @transport.write(JSON.generate(notification))
+            end
+          end
+
+          Norn::PluginManager.subscribe(:after_subprocess_execute) do |payload|
+            if @active_execution_id
+              @last_exit_code = payload[:exit_code]
+              @last_duration = payload[:duration]
             end
           end
         end
@@ -111,10 +121,49 @@ module Norn
           end
 
           # Set active execution context for progress hooks routing
-          @active_execution_id = id if streaming
+          @active_execution_id = id
+          @streaming = streaming
+          @last_exit_code = 0
+          @last_duration = nil
+
+          session = Norn["session"] rescue nil
+          start_tokens = session ? session.to_h : nil
+          start_time = Time.now
 
           begin
             outcome_text = tool.call(arguments, A2AContext.new)
+
+            end_time = Time.now
+            duration = @last_duration || (end_time - start_time)
+            exit_code = @last_exit_code
+
+            # Calculate token delta
+            token_delta = { prompt: 0, completion: 0, total: 0 }
+            if session && start_tokens
+              end_tokens = session.to_h
+              token_delta[:prompt] = end_tokens[:prompt_tokens] - start_tokens[:prompt_tokens]
+              token_delta[:completion] = end_tokens[:completion_tokens] - start_tokens[:completion_tokens]
+              token_delta[:total] = end_tokens[:total_tokens] - start_tokens[:total_tokens]
+            end
+
+            # Send task completed notification
+            completed_notification = {
+              jsonrpc: "2.0",
+              method: "agent.onTaskCompleted",
+              params: {
+                task_id: "task_#{id}",
+                metrics: {
+                  duration: duration.to_f,
+                  exit_code: exit_code.to_i,
+                  tokens: {
+                    prompt: token_delta[:prompt],
+                    completion: token_delta[:completion],
+                    total: token_delta[:total]
+                  }
+                }
+              }
+            }
+            @transport.write(JSON.generate(completed_notification))
 
             # Compliant A2A Task result payload
             result = {
@@ -130,7 +179,8 @@ module Norn
           rescue => e
             write_error(id, -32603, "Internal error during tool call: #{e.message}")
           ensure
-            @active_execution_id = nil if streaming
+            @active_execution_id = nil
+            @streaming = nil
           end
         end
 

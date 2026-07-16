@@ -71,9 +71,18 @@ RSpec.describe Norn::Plugins::A2A::Server do
     }
 
     server.handle_message(JSON.generate(request))
-    expect(transport.written_payloads.length).to eq(1)
+    expect(transport.written_payloads.length).to eq(2)
 
-    response = JSON.parse(transport.written_payloads.first)
+    # First event should be agent.onTaskCompleted notification
+    completed_event = JSON.parse(transport.written_payloads.first)
+    expect(completed_event["method"]).to eq("agent.onTaskCompleted")
+    expect(completed_event["params"]["task_id"]).to eq("task_msg_2")
+    expect(completed_event["params"]["metrics"]).not_to be_nil
+    expect(completed_event["params"]["metrics"]["duration"]).to be_a(Float)
+    expect(completed_event["params"]["metrics"]["exit_code"]).to eq(0)
+
+    # Second event should be final success response
+    response = JSON.parse(transport.written_payloads.last)
     expect(response["id"]).to eq("msg_2")
     expect(response["result"]["status"]["state"]).to eq("COMPLETED")
     expect(response["result"]["parts"].first["text"]).to include("dummy result: test")
@@ -94,14 +103,21 @@ RSpec.describe Norn::Plugins::A2A::Server do
 
     server.handle_message(JSON.generate(request))
     
-    # Expect at least progress notification + final completed response
-    expect(transport.written_payloads.length).to be >= 2
+    # Expect progress notification + task completed + final completed response
+    expect(transport.written_payloads.length).to be >= 3
     
     # Verify progress notifications
     progress_event = transport.written_payloads.find { |p| p.include?("agent.onProgress") }
     expect(progress_event).not_to be_nil
     parsed_progress = JSON.parse(progress_event)
     expect(parsed_progress["params"]["chunk"]).to eq("chunk_data\n")
+
+    # Verify task completed
+    completed_event = transport.written_payloads.find { |p| p.include?("agent.onTaskCompleted") }
+    expect(completed_event).not_to be_nil
+    parsed_completed = JSON.parse(completed_event)
+    expect(parsed_completed["params"]["task_id"]).to eq("task_stream_3")
+    expect(parsed_completed["params"]["metrics"]["exit_code"]).to eq(0)
     
     # Verify final completed response
     final_event = transport.written_payloads.find { |p| p.include?("COMPLETED") }
