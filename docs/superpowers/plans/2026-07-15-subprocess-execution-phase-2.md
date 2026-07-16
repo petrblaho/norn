@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement a long-lived, stateful background subshell execution engine for Norn that keeps directories and environment variables active across tool runs, while streaming raw real-time execution hooks.
+**Goal:** Implement a long-lived, stateful background subshell execution engine for Norn that keeps directories and environment variables active across tool runs, while streaming raw real-time execution hooks without deadlocking or leaking sentinel tokens.
 
-**Architecture:** We will build a unified `Norn::Execution::Subshell` process wrapper that spawns `/bin/bash` once. It multiplexes stdout/stderr dynamically via standard `IO.select` reads. To safely detect process termination and command completion without blocking, we inject unique randomized sentinel tokens (`NORN_SENTINEL_<uuid>`) and capture execution outcomes deterministically.
+**Architecture:** We will build a unified `Norn::Execution::Subshell` process wrapper that spawns `/bin/bash` once. It multiplexes stdout/stderr dynamically via standard `IO.select` reads. To isolate command stdin and prevent swallowing of completion tokens, we wrap commands in a bash group block: `{ command ; } </dev/null; echo "__NORN_OUT_#{token} $?"`. We use a non-leaking, sliding-window buffer filter that buffers partial matches and strips the boundary sentinel before any chunk is yielded to downstream listeners.
 
 **Tech Stack:** Pure Ruby, standard libraries (`open3`, `securerandom`, `thread`), RSpec.
 
@@ -37,7 +37,7 @@ Before writing code, we map out the specific file layout:
 
 - [ ] **Step 1: Declare the new hooks in Norn's core hooks registry**
 
-Modify `lib/norn/plugin_manager.rb` at line 164 to register our three new hooks:
+Modify `lib/norn/plugin_manager.rb` to register our three new hooks inside `register_core_hooks!`:
 ```ruby
 # In lib/norn/plugin_manager.rb
       def register_core_hooks!
@@ -88,7 +88,7 @@ git commit -m "feat(subprocess): declare subprocess lifecycle hooks in plugin ma
   * `#stop` (graceful termination of background shell)
   * `#started?` (status indicator)
 
-- [ ] **Step 1: Write the failing unit tests for stateful persistence and streaming**
+- [ ] **Step 1: Write the failing unit tests for stateful persistence, stdin isolation, and non-leaking streaming**
 
 Create the spec file `spec/norn/execution/subshell_spec.rb`:
 ```ruby
@@ -123,13 +123,25 @@ RSpec.describe Norn::Execution::Subshell do
     expect(outcome.stdout.strip).to eq("jester")
   end
 
-  it "streams stdout chunks in real-time" do
+  it "streams stdout chunks in real-time without leaking the sentinel boundary" do
     subshell.start
     chunks = []
-    subshell.execute("echo 'hello world'") do |type, chunk|
-      chunks << [type, chunk] if type == :stdout
+    outcome = subshell.execute("echo 'hello world'") do |type, chunk|
+      chunks << chunk if type == :stdout
     end
-    expect(chunks.flatten.join).to include("hello world")
+    
+    streamed_text = chunks.join
+    expect(streamed_text).to include("hello world")
+    expect(streamed_text).not_to include("NORN_OUT")
+    expect(outcome.stdout).to include("hello world")
+    expect(outcome.stdout).not_to include("NORN_OUT")
+  end
+
+  it "handles commands that consume standard input without deadlocking" do
+    subshell.start
+    # 'cat' normally reads stdin indefinitely. Stdin isolation must redirect it.
+    outcome = subshell.execute("cat")
+    expect(outcome.exit_code).to eq(0)
   end
 end
 ```
@@ -139,7 +151,7 @@ end
 Run: `bundle exec rspec spec/norn/execution/subshell_spec.rb`
 Expected: FAIL with "NameError: uninitialized constant Norn::Execution::Subshell"
 
-- [ ] **Step 3: Implement the `Norn::Execution::Subshell` engine**
+- [ ] **Step 3: Implement the `Norn::Execution::Subshell` engine with Sliding Window streaming**
 
 Create `lib/norn/execution/subshell.rb`:
 ```ruby
@@ -169,12 +181,10 @@ module Norn
           return if @started
 
           shell_exec = ENV["SHELL"] || "bash"
-          # Detect available shell
           unless system("which #{shell_exec} >/dev/null 2>&1")
             shell_exec = "sh"
           end
 
-          # Spawn persistent subshell process non-blockingly
           @stdin, @stdout, @stderr, @wait_thr = Open3.popen3(shell_exec, chdir: @workspace_root)
           @started = true
         end
@@ -184,15 +194,12 @@ module Norn
         start unless started?
 
         @lock.synchronize do
-          token = "NORN_SENTINEL_#{SecureRandom.hex(8)}"
-          out_sentinel = "#{token}_OUT"
-          err_sentinel = "#{token}_ERR"
+          token = "NORN_OUT_#{SecureRandom.hex(8)}"
+          out_sentinel = "\n#{token}"
 
-          # Write command followed by unique sentinels to stdout and stderr
-          @stdin.puts(command)
-          @stdin.puts("echo \"\"") # handle commands without training newline
-          @stdin.puts("echo \"#{out_sentinel} $?\"")
-          @stdin.puts("echo \"#{err_sentinel}\" >&2")
+          # Stdin isolation using a bash group command block redirected to /dev/null.
+          # Keeps command sequence sequential and prevents stdin swallowing.
+          @stdin.puts("{ #{command} ; } </dev/null; echo \"#{token} $?\"")
 
           accumulated_stdout = ""
           accumulated_stderr = ""
@@ -200,10 +207,13 @@ module Norn
           stderr_done = false
           exit_code = 0
 
+          # Non-leaking stream buffer state
+          pending_yield = ""
+          sentinel_length = out_sentinel.length
+
           loop do
             break if stdout_done && stderr_done
 
-            # Dynamic multiplexing with standard timeout
             ready = IO.select([@stdout, @stderr], nil, nil, timeout)
             if ready.nil?
               raise Timeout::Error, "Command execution timed out after #{timeout} seconds"
@@ -212,43 +222,72 @@ module Norn
             ready[0].each do |stream|
               if stream == @stdout
                 begin
-                  chunk = @stdout.read_nonblock(4096)
+                  chunk = @stdout.read_nonblock(4096).force_encoding("UTF-8").scrub
                   accumulated_stdout << chunk
+                  pending_yield << chunk
 
-                  if accumulated_stdout.include?(out_sentinel)
-                    if match = accumulated_stdout.match(/#{out_sentinel}\s+(\d+)/)
+                  # We look for the sentinel in the pending buffer
+                  if pending_yield.include?(token)
+                    # Complete sentinel found
+                    idx = pending_yield.index(out_sentinel) || pending_yield.index(token)
+                    
+                    # Yield anything before the start of the sentinel
+                    if idx > 0
+                      clean_chunk = pending_yield[0...idx]
+                      yield :stdout, clean_chunk if block_given?
+                    end
+
+                    # Parse exit status
+                    if match = accumulated_stdout.match(/#{token}\s+(\d+)/)
                       exit_code = match[1].to_i
-                      stdout_done = true
+                    end
+
+                    stdout_done = true
+                    stderr_done = true # Reachable once stdout sentinel hits
+                  else
+                    # Check if the trailing end matches a partial prefix of the out_sentinel
+                    # Length to retain is up to (sentinel_length - 1) characters
+                    partial_match_len = 0
+                    (1...sentinel_length).each do |len|
+                      prefix = out_sentinel[0, len]
+                      if pending_yield.end_with?(prefix)
+                        partial_match_len = len
+                      end
+                    end
+
+                    if partial_match_len > 0
+                      # Yield everything except the suspicious trailing suffix
+                      yield_len = pending_yield.length - partial_match_len
+                      if yield_len > 0
+                        yield :stdout, pending_yield[0...yield_len] if block_given?
+                        pending_yield = pending_yield[yield_len..-1]
+                      end
+                    else
+                      # No trailing match, yield everything safely
+                      yield :stdout, pending_yield if block_given?
+                      pending_yield = ""
                     end
                   end
-
-                  yield :stdout, chunk if block_given?
                 rescue IO::WaitReadable
-                  # No bytes available immediately, wait next select
                 rescue EOFError
                   stdout_done = true
+                  stderr_done = true
                 end
               elsif stream == @stderr
                 begin
-                  chunk = @stderr.read_nonblock(4096)
+                  chunk = @stderr.read_nonblock(4096).force_encoding("UTF-8").scrub
                   accumulated_stderr << chunk
-
-                  if accumulated_stderr.include?(err_sentinel)
-                    stderr_done = true
-                  end
-
                   yield :stderr, chunk if block_given?
                 rescue IO::WaitReadable
                 rescue EOFError
-                  stderr_done = true
                 end
               end
             end
           end
 
-          # Clean up the output by stripping off sentinel tokens
-          clean_stdout = accumulated_stdout.gsub(/\n?#{out_sentinel}\s+\d+\n?/, "").strip
-          clean_stderr = accumulated_stderr.gsub(/\n?#{err_sentinel}\n?/, "").strip
+          # Clean outcomes
+          clean_stdout = accumulated_stdout.gsub(/\n?#{token}\s+\d+\n?/, "").strip
+          clean_stderr = accumulated_stderr.strip
 
           Norn::Execution::Outcome.new(
             stdout: clean_stdout,
@@ -256,8 +295,7 @@ module Norn
             exit_code: exit_code
           )
         end
-      rescue EOFError, Errno::EPIPE
-        # If the background process terminated suddenly, reset state
+      rescue EOFError, Errno::EPIPE, Errno::ECONNRESET
         stop
         Norn::Execution::Outcome.new(
           stderr: "Persistent subshell terminated abruptly.",
@@ -273,7 +311,6 @@ module Norn
             @stdin.puts("exit") if @stdin && !@stdin.closed?
             Process.kill("TERM", @wait_thr.pid) if @wait_thr && @wait_thr.alive?
           rescue
-            # Ignore exit command writing or pid signaling issues
           ensure
             @stdin.close if @stdin && !@stdin.closed?
             @stdout.close if @stdout && !@stdout.closed?
@@ -290,14 +327,14 @@ end
 - [ ] **Step 4: Run the specs and confirm they pass**
 
 Run: `bundle exec rspec spec/norn/execution/subshell_spec.rb`
-Expected: ALL PASS (4 green examples)
+Expected: ALL PASS (5 green examples)
 
 - [ ] **Step 5: Commit the Subshell engine**
 
 Run:
 ```bash
 git add lib/norn/execution/subshell.rb spec/norn/execution/subshell_spec.rb
-git commit -m "feat(subprocess): implement persistent Subshell engine with IO.select and sentinel tokens"
+git commit -m "feat(subprocess): implement persistent Subshell engine with stdin-shielding and sliding-window stream filtering"
 ```
 
 ---
@@ -469,7 +506,7 @@ class SubprocessToolsPlugin < Norn::Plugin
         duration: duration
       })
 
-      # Return Outcome
+      # Return Outcome string
       outcome.to_s
     end
 
