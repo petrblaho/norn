@@ -4,16 +4,17 @@
 * **Status**: Approved / Brainstormed
 * **Authors**: Petr Blaho & Norn AI
 * **Target Card**: [Subprocess Execution - Phase 3: The Agent Bridge (Standardized A2A Communication)](https://app.basecamp.com/5717936/buckets/48052540/card_tables/cards/10097083804)
+* **Protocol Target**: [A2A v1.0 Specification (Agent2Agent Protocol)](https://a2a-protocol.org/latest/specification/)
 
 ---
 
 ## 1. Context & Business Case
 
-With Phase 2 successfully implementing state-preserving, persistent subshell execution and real-time output event hooks, Norn is fully equipped with the local execution capabilities needed by advanced agents. 
+With Phase 2 successfully implementing state-preserving, persistent subshell execution and real-time output event hooks, Norn is fully equipped with the local execution capabilities needed by advanced agents.
 
-Phase 3 introduces the **Agent Bridge**, which exposes Norn's tools and execution state to external parent or coordinator agents. To support a distributed multi-agent swarm where specialized agents connect and orchestrate each other over networks, this bridge conforms to the open-source **A2A (Agent-to-Agent) Project** protocol standard.
+Phase 3 introduces the **Agent Bridge**, which exposes Norn's tools and execution state to external parent or coordinator agents. To support a distributed multi-agent swarm where specialized agents connect and orchestrate each other over networks, this bridge strictly conforms to the Linux Foundation open-source **Agent2Agent (A2A) Protocol v1.0 standard**.
 
-To maintain Norn's core design principles—minimal dependency bloat, high execution speed, and decoupled pluggability—this bridge is implemented with an **Abstract Network Transport Layer**. This decouples message parsing and execution routing from the network connection protocols, allowing zero-dependency local TCP routing today and drop-in WebSocket support tomorrow.
+To maintain Norn's core design principles—minimal dependency bloat, high execution speed, and decoupled pluggability—this bridge is implemented with an **Abstract Network Transport Layer**. This decouples message parsing and execution routing from the network connection protocols, allowing zero-dependency local TCP routing today and drop-in WebSocket/HTTP support tomorrow.
 
 ---
 
@@ -25,7 +26,7 @@ We decompose our Agent Bridge into three decoupled components within the newly i
                             ┌────────────────────────────────────┐
                             │        External Parent Agent       │
                             └─────────────────┬──────────────────┘
-                                              │ (JSON-RPC over Network)
+                                              │ (JSON-RPC 2.0 over Network)
                                               ▼
                             ┌────────────────────────────────────┐
                             │    Norn::Plugins::A2A::Transport   │ (TCP / Future WS)
@@ -61,30 +62,38 @@ We decompose our Agent Bridge into three decoupled components within the newly i
 ### 2.3 Component: `Norn::Plugins::A2A::Server`
 * **File**: `plugins/a2a/server.rb`
 * **Responsibilities**:
-  * Act as the central JSON-RPC 2.0 broker.
+  * Act as the central JSON-RPC 2.0 broker mapping to A2A Core Operations.
   * Consume incoming request strings, validate JSON-RPC envelopes, and parse methods.
-  * Route `agent.getCapabilities` to Norn's session state and return metadata.
-  * Route `agent.listTools` to `Norn::ToolRegistry` to serialize and return active tool schemas.
-  * Route `agent.executeTool` to execute target tools via `Tool#call`.
+  * Route `agent.getExtendedAgentCard` to return the A2A `AgentCard` structure detailing Norn's metadata, provider, active capabilities, and available skills.
+  * Route `agent.sendMessage` to trigger target tools via `Tool#call` synchronously.
+  * Route `agent.sendStreamingMessage` to trigger target tools and stream progress updates.
   * Intercept Norn's `:on_subprocess_output` hook and stream raw character chunks back to the client as real-time `agent.onProgress` JSON-RPC notifications.
 
 ---
 
-## 3. JSON-RPC 2.0 Message Protocol Schema Mappings
+## 3. JSON-RPC 2.0 Message Protocol Schema Mappings (A2A v1.0 Compliant)
 
-All message payloads follow the standard JSON-RPC 2.0 specification.
+All message payloads follow the official A2A v1.0 JSON-RPC protocol bindings.
 
-### 3.1 Handshake & Tool Discovery (`agent.listTools`)
+### 3.1 Handshake & Capability Discovery (`agent.getExtendedAgentCard`)
 * **Request**:
   ```json
-  { "jsonrpc": "2.0", "method": "agent.listTools", "id": "req_1" }
+  { "jsonrpc": "2.0", "method": "agent.getExtendedAgentCard", "id": "req_1" }
   ```
 * **Response**:
+  Returns the serialized A2A `AgentCard` describing Norn:
   ```json
   {
     "jsonrpc": "2.0",
     "result": {
-      "tools": [
+      "name": "norn",
+      "version": "1.0.0",
+      "capabilities": {
+        "streaming": true,
+        "push_notifications": false,
+        "extended_agent_card": true
+      },
+      "skills": [
         {
           "name": "execute_command",
           "description": "Executes raw shell or command-line instructions safely in the project workspace root.",
@@ -102,41 +111,64 @@ All message payloads follow the standard JSON-RPC 2.0 specification.
   }
   ```
 
-### 3.2 Capability Inspection (`agent.getCapabilities`)
+### 3.2 Synchronous Tool Execution (`agent.sendMessage`)
 * **Request**:
+  Executes a command block on the agent synchronously. Parameters follow A2A `SendMessageRequest` structure:
   ```json
-  { "jsonrpc": "2.0", "method": "agent.getCapabilities", "id": "req_2" }
+  {
+    "jsonrpc": "2.0",
+    "method": "agent.sendMessage",
+    "params": {
+      "message": {
+        "role": "user",
+        "parts": [
+          { "text": "execute_command command='pwd'" }
+        ]
+      },
+      "configuration": {
+        "return_immediately": false
+      }
+    },
+    "id": "req_2"
+  }
   ```
 * **Response**:
+  Returns the final A2A `Task` status and final text response:
   ```json
   {
     "jsonrpc": "2.0",
     "result": {
-      "agent": {
-        "name": "norn",
-        "version": "1.0.0"
+      "id": "task_abc123",
+      "status": {
+        "state": "COMPLETED"
       },
-      "capabilities": ["sys_execute", "file_read", "file_write"]
+      "parts": [
+        { "text": "/home/user/workspace/norn\n" }
+      ]
     },
     "id": "req_2"
   }
   ```
 
-### 3.3 Tool Execution & Real-Time Hook Streaming (`agent.executeTool` & `agent.onProgress`)
-1. **Client Dispatches Task**:
+### 3.3 Streaming Tool Execution (`agent.sendStreamingMessage` & Progress Stream Notifications)
+1. **Client Dispatches Task with Streaming**:
    ```json
    {
      "jsonrpc": "2.0",
-     "method": "agent.executeTool",
+     "method": "agent.sendStreamingMessage",
      "params": {
-       "name": "execute_command",
-       "arguments": { "command": "echo 'hello swarm'" }
+       "message": {
+         "role": "user",
+         "parts": [
+           { "text": "execute_command command=\"echo 'hello swarm'\"" }
+         ]
+       }
      },
      "id": "req_3"
    }
    ```
-2. **Real-Time Stream Notification Intercepts**:
-   As the subshell execution prints chunks, the server captures `:on_subprocess_output` and streams:
+2. **Real-Time Progress Event Delivery**:
+   As the subshell execution prints chunks, the server captures `:on_subprocess_output` and streams JSON-RPC notification lines back to the active client:
    ```json
    {
      "jsonrpc": "2.0",
@@ -147,14 +179,16 @@ All message payloads follow the standard JSON-RPC 2.0 specification.
      }
    }
    ```
-3. **Execution Completes & Final Response Returned**:
+3. **Task Completion Response**:
+   Once the stream is complete, Norn returns the final task status object:
    ```json
    {
      "jsonrpc": "2.0",
      "result": {
-       "stdout": "hello swarm\n",
-       "stderr": "",
-       "exit_code": 0
+       "id": "task_req_3",
+       "status": {
+         "state": "COMPLETED"
+       }
      },
      "id": "req_3"
    }
@@ -189,7 +223,7 @@ To prevent race conditions, the server maintains an `@active_execution_id` varia
 
 ## 5. Security & Isolation Boundaries
 
-1. **Gatekeeper Enforcement**: Executing tools via `agent.executeTool` runs through the standard Norn tool invocation engine. All capability checks, static validator filters (e.g. blocking `rm -rf /`), and user interaction prompts remain completely active.
+1. **Gatekeeper Enforcement**: Executing tools via `agent.sendMessage` runs through the standard Norn tool invocation engine. All capability checks, static validator filters (e.g. blocking `rm -rf /`), and user interaction prompts remain completely active.
 2. **Local Port Binding Safety**: By default, the TCP server binds strictly to `127.0.0.1` (`localhost`), ensuring external network addresses cannot execute arbitrary commands unless explicitly configured by the user.
 
 ---
@@ -198,7 +232,7 @@ To prevent race conditions, the server maintains an `@active_execution_id` varia
 
 We will write robust, speed-optimized specs under `spec/plugins/a2a/` utilizing isolated local loopback sockets to guarantee 100% test isolation:
 
-1. **Protocol Serialization Tests**: Verify correct mapping of `Norn::Tool` schemas to JSON-RPC parameter objects.
+1. **Protocol Serialization Tests**: Verify correct mapping of `Norn::Tool` schemas to standard A2A `AgentCard` and `SendMessageRequest` schemas.
 2. **Loopback Handshake Tests**: Spawn the A2A Server on an ephemeral local port, connect a test `TCPSocket` client, send raw request lines, and assert correct response serialization.
-3. **Stream Intercept Tests**: Trigger `execute_command` through an A2A request, and verify that progress notifications are emitted over the loopback client socket before the final outcome response.
+3. **Stream Intercept Tests**: Trigger `execute_command` through an `agent.sendStreamingMessage` request, and verify that progress notifications are emitted over the loopback client socket before the final task completion response.
 4. **Port Allocation Safety**: Ensure ports used in tests are automatically closed on test teardown to prevent socket leakage.
