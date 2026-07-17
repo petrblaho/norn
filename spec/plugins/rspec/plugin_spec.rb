@@ -61,7 +61,7 @@ RSpec.describe RSpecPlugin, norn_plugins: :rspec do
         end
 
         expect(Open3).to receive(:capture3)
-          .with("bundle", "exec", "rspec", chdir: anything)
+          .with("bundle exec rspec", chdir: anything)
           .and_return(["Finished in 0.1 seconds\n1 example, 0 failures", "", double(success?: true)])
 
         res = rspec_tool.call({})
@@ -105,7 +105,7 @@ RSpec.describe RSpecPlugin, norn_plugins: :rspec do
         end
 
         expect(Open3).to receive(:capture3)
-          .with("rspec", "spec/my_spec.rb:42", chdir: anything)
+          .with("rspec spec/my_spec.rb:42", chdir: anything)
           .and_return(["1 example, 0 failures", "", double(success?: true)])
 
         res = rspec_tool.call(path: "spec/my_spec.rb", line_number: 42)
@@ -127,7 +127,7 @@ RSpec.describe RSpecPlugin, norn_plugins: :rspec do
         end
 
         expect(Open3).to receive(:capture3)
-          .with("rspec", "spec/my_spec.rb", "--format", "documentation", chdir: anything)
+          .with("rspec spec/my_spec.rb --format documentation", chdir: anything)
           .and_return(["1 example, 0 failures", "", double(success?: true)])
 
         res = rspec_tool.call(path: "spec/my_spec.rb", arguments: ["--format", "documentation"])
@@ -156,6 +156,55 @@ RSpec.describe RSpecPlugin, norn_plugins: :rspec do
         expect(res).to include("RSpec execution failed:")
         expect(res).to include("Failure/Error: expect(1).to eq(2)")
       end
+    end
+  end
+
+  describe "Unified execution & hook integration" do
+    let(:rspec_tool) { registry.resolve("rspec") }
+
+    before do
+      allow(File).to receive(:exist?).and_call_original
+      allow(File).to receive(:exist?).with(anything).and_wrap_original do |original_method, path|
+        if path.end_with?("Gemfile")
+          false
+        else
+          original_method.call(path)
+        end
+      end
+    end
+
+    it "triggers the :before_subprocess_execute middleware hook" do
+      hook_triggered = false
+      Norn::PluginManager.subscribe(:before_subprocess_execute) do |payload|
+        hook_triggered = true
+        payload
+      end
+
+      allow(Open3).to receive(:capture3).and_return(["", "", double(success?: true)])
+      rspec_tool.call({})
+      expect(hook_triggered).to be true
+    end
+
+    it "executes rewritten command returned by hook" do
+      Norn::PluginManager.subscribe(:before_subprocess_execute) do |payload|
+        Dry::Monads::Success(payload.merge(command: "rspec spec/other_spec.rb"))
+      end
+
+      expect(Open3).to receive(:capture3).with("rspec spec/other_spec.rb", chdir: anything).and_return(["rspec output", "", double(success?: true)])
+      res = rspec_tool.call({})
+      expect(res).to eq("rspec output")
+    end
+
+    it "uses Norn::Container['subprocess.shell'] when registered" do
+      subshell = double("Subshell")
+      expect(subshell).to receive(:execute).with("rspec").and_return(
+        Norn::Execution::Outcome.new(stdout: "rspec output", stderr: "", exit_code: 0)
+      )
+      allow(Norn::Container).to receive(:key?).with("subprocess.shell").and_return(true)
+      allow(Norn::Container).to receive(:[]).with("subprocess.shell").and_return(subshell)
+
+      res = rspec_tool.call({})
+      expect(res).to eq("rspec output")
     end
   end
 end
