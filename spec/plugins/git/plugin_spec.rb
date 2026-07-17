@@ -112,7 +112,7 @@ RSpec.describe GitPlugin, norn_plugins: :git do
     it "executes command using array parameter capture without shell wrappers" do
       git_tool = registry.resolve("git")
       
-      expect(Open3).to receive(:capture3).with("git", "status", "-s", chdir: anything).and_return([" M lib/norn.rb", "", double(success?: true)])
+      expect(Open3).to receive(:capture3).with("git status -s", chdir: anything).and_return([" M lib/norn.rb", "", double(success?: true)])
       
       res = git_tool.call(subcommand: "status", arguments: ["-s"])
       expect(res).to eq(" M lib/norn.rb")
@@ -121,11 +121,49 @@ RSpec.describe GitPlugin, norn_plugins: :git do
     it "returns helpful error text on command failure" do
       git_tool = registry.resolve("git")
       
-      expect(Open3).to receive(:capture3).with("git", "checkout", "non-existent", chdir: anything).and_return(["", "error: pathspec 'non-existent' did not match any file", double(success?: false)])
+      expect(Open3).to receive(:capture3).with("git checkout non-existent", chdir: anything).and_return(["", "error: pathspec 'non-existent' did not match any file", double(success?: false)])
       
       res = git_tool.call(subcommand: "checkout", arguments: ["non-existent"])
       expect(res).to include("Error executing git checkout")
       expect(res).to include("error: pathspec 'non-existent'")
+    end
+  end
+
+  describe "Unified execution & hook integration" do
+    let(:git_tool) { registry.resolve("git") }
+
+    it "triggers the :before_subprocess_execute middleware hook" do
+      hook_triggered = false
+      Norn::PluginManager.subscribe(:before_subprocess_execute) do |payload|
+        hook_triggered = true
+        payload
+      end
+
+      allow(Open3).to receive(:capture3).and_return(["", "", double(success?: true)])
+      git_tool.call(subcommand: "status")
+      expect(hook_triggered).to be true
+    end
+
+    it "executes rewritten command returned by hook" do
+      Norn::PluginManager.subscribe(:before_subprocess_execute) do |payload|
+        Dry::Monads::Success(payload.merge(command: "git diff"))
+      end
+
+      expect(Open3).to receive(:capture3).with("git diff", chdir: anything).and_return(["diff output", "", double(success?: true)])
+      res = git_tool.call(subcommand: "status")
+      expect(res).to eq("diff output")
+    end
+
+    it "uses Norn::Container['subprocess.shell'] when registered" do
+      subshell = double("Subshell")
+      expect(subshell).to receive(:execute).with("git status").and_return(
+        Norn::Execution::Outcome.new(stdout: "status output", stderr: "", exit_code: 0)
+      )
+      allow(Norn::Container).to receive(:key?).with("subprocess.shell").and_return(true)
+      allow(Norn::Container).to receive(:[]).with("subprocess.shell").and_return(subshell)
+
+      res = git_tool.call(subcommand: "status")
+      expect(res).to eq("status output")
     end
   end
 end
