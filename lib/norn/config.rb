@@ -19,5 +19,8 @@ module Norn
     setting :git_addon_enabled, default: false
     setting :git_addon_message, default: "Created with the use of LLM via Norn"
     setting :session_cli_format, default: "\e[2;36m(Tokens: %{total} [P: %{prompt} / C: %{completion}] | Tools: %{tools})\e[0m"
+    setting :rtk_enabled, default: true
+    setting :rtk_warn_if_missing, default: true
+    setting :rtk_path, default: nil
   end
 end

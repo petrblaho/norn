@@ -115,17 +115,48 @@ class GitPlugin < Norn::Plugin
         end
       end
 
-      # Construct array safely to completely prevent shell injection vulnerabilities (e.g. avoid ';' or '|' chaining)
+      require "shellwords"
       cmd = ["git", subcmd] + extra_args
+      command_str = Shellwords.join(cmd)
+
+      # Trigger the before_subprocess_execute middleware hook
+      payload = { command: command_str }
+      before_result = Norn::PluginManager.trigger_middleware(:before_subprocess_execute, payload)
+      sanitized_command = before_result.success? ? before_result.value![:command] : command_str
 
       begin
         root = File.expand_path(Norn.workspace_root)
-        stdout, stderr, status = Open3.capture3(*cmd, chdir: root)
+        if Norn::Container.key?("subprocess.shell")
+          subshell = Norn::Container["subprocess.shell"]
+          output_stream = (context && context.respond_to?(:output)) ? context.output : $stdout
+          
+          outcome = subshell.execute(sanitized_command) do |stream_type, chunk|
+            Norn::PluginManager.trigger(:on_subprocess_output, {
+              stream: stream_type,
+              chunk: chunk
+            })
 
-        if status.success?
-          stdout.empty? ? "Command executed successfully (no output)." : stdout
+            if stream_type == :stderr
+              output_stream.print "\e[1;31m#{chunk}\e[0m"
+            else
+              output_stream.print chunk
+            end
+          end
+          
+          if outcome.success?
+            outcome.stdout.empty? ? "Command executed successfully (no output)." : outcome.stdout
+          else
+            "Error executing git #{subcmd}:\n#{outcome.stderr}\n#{outcome.stdout}"
+          end
         else
-          "Error executing git #{subcmd}: #{stderr}\n#{stdout}"
+          require "shellwords"
+          stdout, stderr, status = Open3.capture3(*Shellwords.split(sanitized_command), chdir: root)
+
+          if status.success?
+            stdout.empty? ? "Command executed successfully (no output)." : stdout
+          else
+            "Error executing git #{subcmd}: #{stderr}\n#{stdout}"
+          end
         end
       rescue => e
         "Failed to run git command: #{e.message}"
