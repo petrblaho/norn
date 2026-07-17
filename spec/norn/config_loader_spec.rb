@@ -149,5 +149,43 @@ RSpec.describe Norn::ConfigLoader do
         expect(Norn.config.instructions[:prepend]).to eq(["from json"])
       end
     end
+
+    describe "RTK plugin configuration" do
+      before do
+        @orig_enabled = Norn.config.rtk_enabled
+        @orig_warn = Norn.config.rtk_warn_if_missing
+        @orig_path = Norn.config.rtk_path
+      end
+
+      after do
+        Norn::Config.config.update(
+          rtk_enabled: @orig_enabled,
+          rtk_warn_if_missing: @orig_warn,
+          rtk_path: @orig_path
+        )
+      end
+
+      it "loads default values for RTK settings" do
+        described_class.load
+        expect(Norn.config.rtk_enabled).to be true
+        expect(Norn.config.rtk_warn_if_missing).to be true
+        expect(Norn.config.rtk_path).to be_nil
+      end
+
+      it "allows overriding and validates boolean parameters" do
+        local_path = File.join(Dir.pwd, ".norn.yml")
+        allow(File).to receive(:exist?).with(local_path).and_return(true)
+        allow(YAML).to receive(:load_file).with(local_path).and_return({
+          rtk_enabled: false,
+          rtk_warn_if_missing: false,
+          rtk_path: "/usr/local/bin/rtk"
+        })
+
+        described_class.load
+        expect(Norn.config.rtk_enabled).to be false
+        expect(Norn.config.rtk_warn_if_missing).to be false
+        expect(Norn.config.rtk_path).to eq("/usr/local/bin/rtk")
+      end
+    end
   end
 end

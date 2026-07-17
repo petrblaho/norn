@@ -15,6 +15,9 @@ module Norn
       optional(:git_addon_message).maybe(:string)
       optional(:session_cli_format).maybe(:string)
       optional(:workspace_root).maybe(:string)
+      optional(:rtk_enabled).maybe(:bool)
+      optional(:rtk_warn_if_missing).maybe(:bool)
+      optional(:rtk_path).maybe(:string)
       
       # New instruction structure
       optional(:instructions).hash do
@@ -57,7 +60,7 @@ module Norn
         if validation.success?
           # Apply validated values to dry-configurable Config
           validation.to_h.each do |key, value|
-            Norn::Config.config.send("#{key}=", value) if value
+            Norn::Config.config.send("#{key}=", value) unless value.nil?
           end
         else
           # Print validation warnings to stderr
