@@ -149,7 +149,8 @@ class GitPlugin < Norn::Plugin
             "Error executing git #{subcmd}:\n#{outcome.stderr}\n#{outcome.stdout}"
           end
         else
-          stdout, stderr, status = Open3.capture3(sanitized_command, chdir: root)
+          require "shellwords"
+          stdout, stderr, status = Open3.capture3(*Shellwords.split(sanitized_command), chdir: root)
 
           if status.success?
             stdout.empty? ? "Command executed successfully (no output)." : stdout

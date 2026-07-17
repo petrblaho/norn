@@ -100,7 +100,8 @@ class RSpecPlugin < Norn::Plugin
             "RSpec execution failed:\n#{outcome.stderr}\n#{outcome.stdout}"
           end
         else
-          stdout, stderr, status = Open3.capture3(sanitized_command, chdir: root)
+          require "shellwords"
+          stdout, stderr, status = Open3.capture3(*Shellwords.split(sanitized_command), chdir: root)
 
           if status.success?
             stdout.empty? ? "Tests passed successfully (no output)." : stdout

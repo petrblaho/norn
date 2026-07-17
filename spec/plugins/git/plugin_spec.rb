@@ -112,7 +112,7 @@ RSpec.describe GitPlugin, norn_plugins: :git do
     it "executes command using array parameter capture without shell wrappers" do
       git_tool = registry.resolve("git")
       
-      expect(Open3).to receive(:capture3).with("git status -s", chdir: anything).and_return([" M lib/norn.rb", "", double(success?: true)])
+      expect(Open3).to receive(:capture3).with("git", "status", "-s", chdir: anything).and_return([" M lib/norn.rb", "", double(success?: true)])
       
       res = git_tool.call(subcommand: "status", arguments: ["-s"])
       expect(res).to eq(" M lib/norn.rb")
@@ -121,7 +121,7 @@ RSpec.describe GitPlugin, norn_plugins: :git do
     it "returns helpful error text on command failure" do
       git_tool = registry.resolve("git")
       
-      expect(Open3).to receive(:capture3).with("git checkout non-existent", chdir: anything).and_return(["", "error: pathspec 'non-existent' did not match any file", double(success?: false)])
+      expect(Open3).to receive(:capture3).with("git", "checkout", "non-existent", chdir: anything).and_return(["", "error: pathspec 'non-existent' did not match any file", double(success?: false)])
       
       res = git_tool.call(subcommand: "checkout", arguments: ["non-existent"])
       expect(res).to include("Error executing git checkout")
@@ -149,7 +149,7 @@ RSpec.describe GitPlugin, norn_plugins: :git do
         Dry::Monads::Success(payload.merge(command: "git diff"))
       end
 
-      expect(Open3).to receive(:capture3).with("git diff", chdir: anything).and_return(["diff output", "", double(success?: true)])
+      expect(Open3).to receive(:capture3).with("git", "diff", chdir: anything).and_return(["diff output", "", double(success?: true)])
       res = git_tool.call(subcommand: "status")
       expect(res).to eq("diff output")
     end

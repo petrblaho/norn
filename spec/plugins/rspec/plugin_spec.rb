@@ -61,7 +61,7 @@ RSpec.describe RSpecPlugin, norn_plugins: :rspec do
         end
 
         expect(Open3).to receive(:capture3)
-          .with("bundle exec rspec", chdir: anything)
+          .with("bundle", "exec", "rspec", chdir: anything)
           .and_return(["Finished in 0.1 seconds\n1 example, 0 failures", "", double(success?: true)])
 
         res = rspec_tool.call({})
@@ -105,7 +105,7 @@ RSpec.describe RSpecPlugin, norn_plugins: :rspec do
         end
 
         expect(Open3).to receive(:capture3)
-          .with("rspec spec/my_spec.rb:42", chdir: anything)
+          .with("rspec", "spec/my_spec.rb:42", chdir: anything)
           .and_return(["1 example, 0 failures", "", double(success?: true)])
 
         res = rspec_tool.call(path: "spec/my_spec.rb", line_number: 42)
@@ -127,7 +127,7 @@ RSpec.describe RSpecPlugin, norn_plugins: :rspec do
         end
 
         expect(Open3).to receive(:capture3)
-          .with("rspec spec/my_spec.rb --format documentation", chdir: anything)
+          .with("rspec", "spec/my_spec.rb", "--format", "documentation", chdir: anything)
           .and_return(["1 example, 0 failures", "", double(success?: true)])
 
         res = rspec_tool.call(path: "spec/my_spec.rb", arguments: ["--format", "documentation"])
@@ -190,7 +190,7 @@ RSpec.describe RSpecPlugin, norn_plugins: :rspec do
         Dry::Monads::Success(payload.merge(command: "rspec spec/other_spec.rb"))
       end
 
-      expect(Open3).to receive(:capture3).with("rspec spec/other_spec.rb", chdir: anything).and_return(["rspec output", "", double(success?: true)])
+      expect(Open3).to receive(:capture3).with("rspec", "spec/other_spec.rb", chdir: anything).and_return(["rspec output", "", double(success?: true)])
       res = rspec_tool.call({})
       expect(res).to eq("rspec output")
     end

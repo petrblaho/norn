@@ -33,6 +33,9 @@ RSpec.configure do |config|
       llm_provider: "openai",
       sandbox_info: "You are running in a secure sandboxed CLI environment."
     )
+    if Norn::Container.instance_variable_get(:@_container)
+      Norn::Container.instance_variable_get(:@_container).clear
+    end
   end
 
   # Require and load our plugin helper *after* the global before(:each) hook
